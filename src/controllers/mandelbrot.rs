@@ -1,0 +1,40 @@
+use crate::core::data::complex::Complex;
+use crate::core::data::point::Point;
+use crate::core::data::pixel_rect::PixelRect;
+use crate::core::data::complex_rect::ComplexRect;
+use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
+use crate::core::actions::generate_fractal::generate_fractal::generate_fractal;
+use crate::core::actions::generate_pixel_buffer::generate_pixel_buffer::generate_pixel_buffer;
+use crate::core::fractals::mandelbrot::colour_maps::blue_white_gradient::MandelbrotBlueWhiteGradient;
+use crate::storage::write_ppm::write_ppm;
+
+pub fn mandelbrot_controller() -> Result<(), Box<dyn std::error::Error>> {
+    let width: i32 = 800;
+    let height: i32 = 600;
+    let max_iterations: u32 = 256;
+    let filepath = "output/mandelbrot.ppm";
+
+    let pixel_rect = PixelRect::new(
+        Point { x: 0, y: 0 },
+        Point { x: width, y: height },
+    )?;
+
+    // Classic Mandelbrot view
+    let complex_rect = ComplexRect::new(
+        Complex { real: -2.5, imag: -1.0  },
+        Complex { real: 1.0, imag: 1.0  },
+    )?;
+
+    println!("Rendering Mandelbrot set...");
+    println!("Image size: {}x{}", width, height);
+    println!("Max iterations: {}", max_iterations);
+
+    let mandelbrot_algorithm = MandelbrotAlgorithm::new(pixel_rect, complex_rect, max_iterations)?;
+    let fractal = generate_fractal(pixel_rect, &mandelbrot_algorithm)?;
+    let colour_map = MandelbrotBlueWhiteGradient::new(max_iterations);
+    let pixel_buf = generate_pixel_buffer(fractal, &colour_map, pixel_rect)?;
+
+    write_ppm(pixel_buf, filepath)?;
+    println!("Saved to {}", filepath);
+    Ok(())
+}
