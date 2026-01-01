@@ -116,3 +116,361 @@ impl PixelBuffer {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_pixel_rect(width: i32, height: i32) -> PixelRect {
+        PixelRect::new(
+            Point { x: 0, y: 0 },
+            Point { x: width, y: height },
+        ).unwrap()
+    }
+
+    fn create_offset_pixel_rect(x: i32, y: i32, width: i32, height: i32) -> PixelRect {
+        PixelRect::new(
+            Point { x, y },
+            Point { x: x + width, y: y + height },
+        ).unwrap()
+    }
+
+    #[test]
+    fn test_new_creates_zeroed_buffer() {
+        let pixel_rect = create_pixel_rect(10, 10);
+        let buffer = PixelBuffer::new(pixel_rect);
+
+        assert_eq!(buffer.pixel_rect(), pixel_rect);
+        assert_eq!(buffer.buffer_size(), 300); // 10 * 10 * 3
+        assert!(buffer.buffer().iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn test_new_calculates_correct_buffer_size() {
+        let pixel_rect = create_pixel_rect(100, 50);
+        let buffer = PixelBuffer::new(pixel_rect);
+
+        assert_eq!(buffer.buffer_size(), 15000); // 100 * 50 * 3
+    }
+
+    #[test]
+    fn test_new_with_single_pixel() {
+        let pixel_rect = create_pixel_rect(1, 1);
+        let buffer = PixelBuffer::new(pixel_rect);
+
+        assert_eq!(buffer.buffer_size(), 3); // 1 * 1 * 3
+    }
+
+    #[test]
+    fn test_from_data_valid() {
+        let pixel_rect = create_pixel_rect(2, 2);
+        let data: Vec<u8> = vec![
+            255, 0, 0,    // pixel (0,0) - red
+            0, 255, 0,    // pixel (1,0) - green
+            0, 0, 255,    // pixel (0,1) - blue
+            255, 255, 0,  // pixel (1,1) - yellow
+        ];
+
+        let buffer = PixelBuffer::from_data(pixel_rect, data.clone());
+
+        assert!(buffer.is_ok());
+        let buffer = buffer.unwrap();
+        assert_eq!(buffer.pixel_rect(), pixel_rect);
+        assert_eq!(buffer.buffer(), &data);
+    }
+
+    #[test]
+    fn test_from_data_buffer_too_small() {
+        let pixel_rect = create_pixel_rect(2, 2);
+        let data: Vec<u8> = vec![255, 0, 0]; // Only 3 bytes, need 12
+
+        let result = PixelBuffer::from_data(pixel_rect, data);
+
+        assert_eq!(
+            result.unwrap_err(),
+            PixelBufferError::BoundsMismatch {
+                pixel_rect_size: 12,
+                buffer_size: 3
+            }
+        );
+    }
+
+    #[test]
+    fn test_from_data_buffer_too_large() {
+        let pixel_rect = create_pixel_rect(2, 2);
+        let data: Vec<u8> = vec![0; 24]; // 24 bytes, need 12
+
+        let result = PixelBuffer::from_data(pixel_rect, data);
+
+        assert_eq!(
+            result.unwrap_err(),
+            PixelBufferError::BoundsMismatch {
+                pixel_rect_size: 12,
+                buffer_size: 24
+            }
+        );
+    }
+
+    #[test]
+    fn test_from_data_empty_buffer_for_valid_rect() {
+        let pixel_rect = create_pixel_rect(2, 2);
+        let data: Vec<u8> = vec![];
+
+        let result = PixelBuffer::from_data(pixel_rect, data);
+
+        assert_eq!(
+            result.unwrap_err(),
+            PixelBufferError::BoundsMismatch {
+                pixel_rect_size: 12,
+                buffer_size: 0
+            }
+        );
+    }
+
+    #[test]
+    fn test_pixel_rect_getter() {
+        let pixel_rect = create_offset_pixel_rect(10, 20, 30, 40);
+        let buffer = PixelBuffer::new(pixel_rect);
+
+        assert_eq!(buffer.pixel_rect(), pixel_rect);
+        assert_eq!(buffer.pixel_rect().top_left(), Point { x: 10, y: 20 });
+        assert_eq!(buffer.pixel_rect().bottom_right(), Point { x: 40, y: 60 });
+    }
+
+    #[test]
+    fn test_buffer_getter() {
+        let pixel_rect = create_pixel_rect(2, 1);
+        let data: Vec<u8> = vec![1, 2, 3, 4, 5, 6];
+        let buffer = PixelBuffer::from_data(pixel_rect, data.clone()).unwrap();
+
+        assert_eq!(buffer.buffer(), &data);
+    }
+
+    #[test]
+    fn test_buffer_size_getter() {
+        let pixel_rect = create_pixel_rect(5, 7);
+        let buffer = PixelBuffer::new(pixel_rect);
+
+        assert_eq!(buffer.buffer_size(), 105); // 5 * 7 * 3
+    }
+
+    #[test]
+    fn test_set_buffer_valid() {
+        let pixel_rect = create_pixel_rect(2, 2);
+        let mut buffer = PixelBuffer::new(pixel_rect);
+        let new_data: Vec<u8> = vec![255; 12];
+
+        let result = buffer.set_buffer(new_data.clone());
+
+        assert!(result.is_ok());
+        assert_eq!(buffer.buffer(), &new_data);
+    }
+
+    #[test]
+    fn test_set_buffer_wrong_size() {
+        let pixel_rect = create_pixel_rect(2, 2);
+        let mut buffer = PixelBuffer::new(pixel_rect);
+        let new_data: Vec<u8> = vec![255; 6]; // Wrong size
+
+        let result = buffer.set_buffer(new_data);
+
+        assert_eq!(
+            result,
+            Err(PixelBufferError::BoundsMismatch {
+                pixel_rect_size: 12,
+                buffer_size: 6
+            })
+        );
+    }
+
+    #[test]
+    fn test_set_buffer_preserves_original_on_error() {
+        let pixel_rect = create_pixel_rect(2, 2);
+        let original_data: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+        let mut buffer = PixelBuffer::from_data(pixel_rect, original_data.clone()).unwrap();
+        let wrong_data: Vec<u8> = vec![255; 6];
+
+        let _ = buffer.set_buffer(wrong_data);
+
+        assert_eq!(buffer.buffer(), &original_data);
+    }
+
+    #[test]
+    fn test_set_pixel_valid() {
+        let pixel_rect = create_pixel_rect(3, 3);
+        let mut buffer = PixelBuffer::new(pixel_rect);
+        let red = Colour { r: 255, g: 0, b: 0 };
+
+        let result = buffer.set_pixel(Point { x: 1, y: 1 }, red);
+
+        assert!(result.is_ok());
+        // Index for (1,1) in a 3x3 grid: (1 * 3 + 1) * 3 = 12
+        assert_eq!(buffer.buffer()[12], 255);
+        assert_eq!(buffer.buffer()[13], 0);
+        assert_eq!(buffer.buffer()[14], 0);
+    }
+
+    #[test]
+    fn test_set_pixel_top_left_corner() {
+        let pixel_rect = create_pixel_rect(3, 3);
+        let mut buffer = PixelBuffer::new(pixel_rect);
+        let green = Colour { r: 0, g: 255, b: 0 };
+
+        let result = buffer.set_pixel(Point { x: 0, y: 0 }, green);
+
+        assert!(result.is_ok());
+        assert_eq!(buffer.buffer()[0], 0);
+        assert_eq!(buffer.buffer()[1], 255);
+        assert_eq!(buffer.buffer()[2], 0);
+    }
+
+    #[test]
+    fn test_set_pixel_bottom_right_corner() {
+        let pixel_rect = create_pixel_rect(3, 3);
+        let mut buffer = PixelBuffer::new(pixel_rect);
+        let blue = Colour { r: 0, g: 0, b: 255 };
+
+        // Bottom right is at (2, 2) for a rect from (0,0) to (3,3) with width/height 3
+        let result = buffer.set_pixel(Point { x: 2, y: 2 }, blue);
+
+        assert!(result.is_ok());
+        // Index for (2,2) in a 3x3 grid: (2 * 3 + 2) * 3 = 24
+        assert_eq!(buffer.buffer()[24], 0);
+        assert_eq!(buffer.buffer()[25], 0);
+        assert_eq!(buffer.buffer()[26], 255);
+    }
+
+    #[test]
+    fn test_set_pixel_with_offset_rect() {
+        let pixel_rect = create_offset_pixel_rect(10, 20, 3, 3);
+        let mut buffer = PixelBuffer::new(pixel_rect);
+        let white = Colour { r: 255, g: 255, b: 255 };
+
+        let result = buffer.set_pixel(Point { x: 11, y: 21 }, white);
+
+        assert!(result.is_ok());
+        // Relative position is (1, 1), index: (1 * 3 + 1) * 3 = 12
+        assert_eq!(buffer.buffer()[12], 255);
+        assert_eq!(buffer.buffer()[13], 255);
+        assert_eq!(buffer.buffer()[14], 255);
+    }
+
+    #[test]
+    fn test_set_pixel_outside_bounds_right() {
+        let pixel_rect = create_pixel_rect(3, 3);
+        let mut buffer = PixelBuffer::new(pixel_rect);
+        let colour = Colour { r: 255, g: 0, b: 0 };
+
+        let result = buffer.set_pixel(Point { x: 5, y: 1 }, colour);
+
+        assert_eq!(
+            result,
+            Err(PixelBufferError::PixelOutsideBounds {
+                pixel: Point { x: 5, y: 1 },
+                pixel_rect
+            })
+        );
+    }
+
+    #[test]
+    fn test_set_pixel_outside_bounds_bottom() {
+        let pixel_rect = create_pixel_rect(3, 3);
+        let mut buffer = PixelBuffer::new(pixel_rect);
+        let colour = Colour { r: 255, g: 0, b: 0 };
+
+        let result = buffer.set_pixel(Point { x: 1, y: 5 }, colour);
+
+        assert_eq!(
+            result,
+            Err(PixelBufferError::PixelOutsideBounds {
+                pixel: Point { x: 1, y: 5 },
+                pixel_rect
+            })
+        );
+    }
+
+    #[test]
+    fn test_set_pixel_outside_bounds_negative() {
+        let pixel_rect = create_pixel_rect(3, 3);
+        let mut buffer = PixelBuffer::new(pixel_rect);
+        let colour = Colour { r: 255, g: 0, b: 0 };
+
+        let result = buffer.set_pixel(Point { x: -1, y: -1 }, colour);
+
+        assert_eq!(
+            result,
+            Err(PixelBufferError::PixelOutsideBounds {
+                pixel: Point { x: -1, y: -1 },
+                pixel_rect
+            })
+        );
+    }
+
+    #[test]
+    fn test_set_multiple_pixels() {
+        let pixel_rect = create_pixel_rect(2, 2);
+        let mut buffer = PixelBuffer::new(pixel_rect);
+
+        buffer.set_pixel(Point { x: 0, y: 0 }, Colour { r: 255, g: 0, b: 0 }).unwrap();
+        buffer.set_pixel(Point { x: 1, y: 0 }, Colour { r: 0, g: 255, b: 0 }).unwrap();
+        buffer.set_pixel(Point { x: 0, y: 1 }, Colour { r: 0, g: 0, b: 255 }).unwrap();
+        buffer.set_pixel(Point { x: 1, y: 1 }, Colour { r: 255, g: 255, b: 0 }).unwrap();
+
+        let expected: Vec<u8> = vec![
+            255, 0, 0,    // (0,0) red
+            0, 255, 0,    // (1,0) green
+            0, 0, 255,    // (0,1) blue
+            255, 255, 0,  // (1,1) yellow
+        ];
+        assert_eq!(buffer.buffer(), &expected);
+    }
+
+    #[test]
+    fn test_error_display_bounds_mismatch() {
+        let error = PixelBufferError::BoundsMismatch {
+            pixel_rect_size: 100,
+            buffer_size: 50,
+        };
+
+        assert_eq!(
+            format!("{}", error),
+            "pixel rect size 100 does not match buffer size 50"
+        );
+    }
+
+    #[test]
+    fn test_error_display_pixel_outside_bounds() {
+        let pixel_rect = create_offset_pixel_rect(10, 20, 100, 100);
+        let error = PixelBufferError::PixelOutsideBounds {
+            pixel: Point { x: 5, y: 5 },
+            pixel_rect,
+        };
+
+        assert_eq!(
+            format!("{}", error),
+            "pixel at x:5, y:5 outside of PixelRect bounds top:20, left:10, bottom:120, right:110"
+        );
+    }
+
+    #[test]
+    fn test_error_is_std_error() {
+        let error: Box<dyn std::error::Error> = Box::new(PixelBufferError::BoundsMismatch {
+            pixel_rect_size: 10,
+            buffer_size: 5,
+        });
+
+        assert!(error.to_string().contains("does not match"));
+    }
+
+    #[test]
+    fn test_pixel_buffer_debug() {
+        let pixel_rect = create_pixel_rect(1, 1);
+        let buffer = PixelBuffer::new(pixel_rect);
+
+        let debug_str = format!("{:?}", buffer);
+
+        assert!(debug_str.contains("PixelBuffer"));
+        assert!(debug_str.contains("pixel_rect"));
+        assert!(debug_str.contains("buffer"));
+    }
+}
