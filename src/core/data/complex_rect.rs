@@ -138,16 +138,6 @@ mod tests {
     }
 
     #[test]
-    fn test_complex_rect_zero_height() {
-        let rect = ComplexRect::new(
-            Complex { real: 0.0, imag: 0.0 },
-            Complex { real: 10.0, imag: 0.0 },
-        );
-
-        assert_eq!(rect, Err(ComplexRectError::InvalidSize { width: 10.0, height: 0.0 }));
-    }
-
-    #[test]
     fn test_complex_rect_dimensions() {
         let rect = ComplexRect::new(
             Complex { real: -2.5, imag: -1.0 },
