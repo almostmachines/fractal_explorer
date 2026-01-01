@@ -7,14 +7,14 @@ use crate::core::data::complex_rect::ComplexRect;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum PixelToComplexCoordsError {
-    PointOutsideRect { point: Point, rect: PixelRect },
+    PointOutsideRect { point: Point, pixel_rect: PixelRect },
 }
 
 impl fmt::Display for PixelToComplexCoordsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::PointOutsideRect { point, rect } => {
-                write!(f, "point (x: {}, y: {}) is outside the rectangle with coords top-left: (x: {}, y: {}) bottom-right: (x: {}, y: {})", point.x, point.y, rect.top_left().x, rect.top_left().y, rect.bottom_right().x, rect.bottom_right().y)
+            Self::PointOutsideRect { point, pixel_rect } => {
+                write!(f, "point (x: {}, y: {}) is outside the rectangle with coords top-left: (x: {}, y: {}) bottom-right: (x: {}, y: {})", point.x, point.y, pixel_rect.top_left().x, pixel_rect.top_left().y, pixel_rect.bottom_right().x, pixel_rect.bottom_right().y)
             }
         }
     }
@@ -28,7 +28,7 @@ pub fn pixel_to_complex_coords(
     complex_rect: ComplexRect,
 ) -> Result<Complex, PixelToComplexCoordsError> {
     if !pixel_rect.contains_point(pixel_position) {
-        return Err(PixelToComplexCoordsError::PointOutsideRect { point: pixel_position, rect: pixel_rect })
+        return Err(PixelToComplexCoordsError::PointOutsideRect { point: pixel_position, pixel_rect })
     }
 
     let relative_pixel_x = (pixel_position.x - pixel_rect.top_left().x) as f64;
@@ -114,7 +114,7 @@ mod tests {
         let result1 = pixel_to_complex_coords(point1, pixel_rect, complex_rect);
         let result2 = pixel_to_complex_coords(point2, pixel_rect, complex_rect);
 
-        assert_eq!(result1, Err(PixelToComplexCoordsError::PointOutsideRect { point: point1, rect: pixel_rect }));
-        assert_eq!(result2, Err(PixelToComplexCoordsError::PointOutsideRect { point: point2, rect: pixel_rect }));
+        assert_eq!(result1, Err(PixelToComplexCoordsError::PointOutsideRect { point: point1, pixel_rect }));
+        assert_eq!(result2, Err(PixelToComplexCoordsError::PointOutsideRect { point: point2, pixel_rect }));
     }
 }
