@@ -38,3 +38,15 @@ pub fn mandelbrot_controller() -> Result<(), Box<dyn std::error::Error>> {
     println!("Saved to {}", filepath);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mandelbrot_controller_returns_ok() {
+        let result = mandelbrot_controller();
+
+        assert!(result.is_ok());
+    }
+}
