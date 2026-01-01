@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::fmt;
+use std::ops::ControlFlow;
 use crate::core::data::complex::Complex;
 use crate::core::data::point::Point;
 use crate::core::data::pixel_rect::PixelRect;
@@ -37,16 +38,22 @@ impl FractalAlgorithm for MandelbrotAlgorithm {
 
     fn compute(&self, pixel: Point) -> Result<Self::Success, Self::Failure> {
         let c = pixel_to_complex_coords(pixel, self.pixel_rect, self.complex_rect)?;
-        let mut z = Complex { real: 0.0, imag: 0.0 };
+        let z = Complex { real: 0.0, imag: 0.0 };
 
-        for iteration in 0..self.max_iterations {
-            if z.magnitude_squared() > 4.0 {
-                return Ok(iteration);
+        let iterations = (1..=self.max_iterations).try_fold(z, |z0, iteration| {
+            if z0.magnitude_squared() > 4.0 {
+                ControlFlow::Break(iteration - 1)
+            } else {
+                ControlFlow::Continue(z0 * z0 + c)
             }
-            z = z * z + c;
-        }
+        });
 
-        Ok(self.max_iterations)
+        Ok(
+            match iterations {
+                ControlFlow::Break(iteration) => iteration,
+                ControlFlow::Continue(_) => self.max_iterations,
+            }
+        )
     }
 }
 
