@@ -69,7 +69,7 @@ mod tests {
     }
 
     #[test]
-    fn test_returns_error_on_algorithm_failure() {
+    fn test_propagates_algorithm_failure() {
         let algorithm = StubFailureAlgorithm {};
         let pixel_rect = PixelRect::new(Point { x:0, y:0 }, Point { x:3, y:4 }).unwrap();
         let results = generate_fractal(pixel_rect, &algorithm);
