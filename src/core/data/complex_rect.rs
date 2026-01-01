@@ -80,9 +80,6 @@ impl ComplexRect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::data::pixel_rect::PixelRect;
-    use crate::core::data::point::Point;
-    use crate::core::util::pixel_to_complex_coords::{pixel_to_complex_coords, PixelToComplexCoordsError};
 
     #[test]
     fn test_complex_rect_new_valid() {
