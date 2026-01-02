@@ -2,6 +2,7 @@ use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
 use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
 
+#[allow(dead_code)]
 pub fn generate_fractal<Alg: FractalAlgorithm>(pixel_rect: PixelRect, algorithm: &Alg) -> Result<Vec<Alg::Success>, Alg::Failure>
 {
     (pixel_rect.top_left().y..pixel_rect.bottom_right().y)
