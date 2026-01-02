@@ -51,13 +51,13 @@ impl PixelRect {
     }
 
     #[must_use]
-    pub fn width(&self) -> i32 {
-        self.bottom_right.x - self.top_left.x
+    pub fn width(&self) -> u32 {
+        (self.bottom_right.x - self.top_left.x) as u32
     }
 
     #[must_use]
-    pub fn height(&self) -> i32 {
-        self.bottom_right.y - self.top_left.y
+    pub fn height(&self) -> u32 {
+        (self.bottom_right.y - self.top_left.y) as u32
     }
 
     #[must_use]
@@ -71,7 +71,7 @@ impl PixelRect {
     #[allow(dead_code)]
     #[must_use]
     pub fn size(&self) -> u64 {
-        (self.width() * self.height()).unsigned_abs() as u64
+        (self.width() * self.height()) as u64
     }
 }
 

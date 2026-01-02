@@ -101,13 +101,13 @@ impl PixelBuffer {
 
     #[allow(dead_code)]
     pub fn set_pixel(&mut self, pixel: Point, colour: Colour) -> Result<(), PixelBufferError> {
-        let relative_x = pixel.x - self.pixel_rect.top_left().x;
-        let relative_y = pixel.y - self.pixel_rect.top_left().y;
-        let index = ((relative_y * self.pixel_rect.width() + relative_x) * 3) as usize;
-
         if !self.pixel_rect.contains_point(pixel) {
             return Err(PixelBufferError::PixelOutsideBounds { pixel, pixel_rect: self.pixel_rect })
         }
+
+        let relative_x = (pixel.x - self.pixel_rect.top_left().x) as u32;
+        let relative_y = (pixel.y - self.pixel_rect.top_left().y) as u32;
+        let index = ((relative_y * self.pixel_rect.width() + relative_x) * 3) as usize;
 
         self.buffer[index] = colour.r;
         self.buffer[index + 1] = colour.g;
