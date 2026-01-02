@@ -9,6 +9,7 @@ use crate::core::data::point::Point;
 ///
 /// Each thread computes a range of rows independently. Results are collected
 /// and concatenated in row-major order to match the sequential version.
+#[allow(dead_code)]
 pub fn generate_fractal_parallel<Alg>(
     pixel_rect: PixelRect,
     algorithm: Arc<Alg>,
