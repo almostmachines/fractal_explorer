@@ -1,0 +1,148 @@
+use std::thread;
+
+use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
+use crate::core::data::pixel_rect::PixelRect;
+use crate::core::data::point::Point;
+
+/// Generates fractal data in parallel by splitting the image into horizontal bands.
+///
+/// Each thread computes a range of rows independently. Results are collected
+/// and concatenated in row-major order to match the sequential version.
+#[allow(dead_code)]
+pub fn generate_fractal_parallel_scoped_threads<Alg: FractalAlgorithm + Send + Sync>(
+    pixel_rect: PixelRect,
+    algorithm: &Alg,
+) -> Result<Vec<Alg::Success>, Alg::Failure>
+where
+    Alg::Success: Send,
+    Alg::Failure: Send,
+{
+    let num_threads = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4);
+
+    let height = pixel_rect.height() as usize;
+    let top_y = pixel_rect.top_left().y;
+    let left_x = pixel_rect.top_left().x;
+    let right_x = pixel_rect.bottom_right().x;
+    let rows_per_thread = height / num_threads;
+    let total_pixels = pixel_rect.size() as usize;
+    let mut results = Vec::with_capacity(total_pixels);
+
+    thread::scope(|scope| {
+        let handles: Vec<_> = (0..num_threads)
+            .map(|thread_idx| {
+                // Calculate row range for this thread
+                let start_row = thread_idx * rows_per_thread;
+                let end_row = if thread_idx == num_threads - 1 {
+                    height // Last thread takes any remainder rows
+                } else {
+                    (thread_idx + 1) * rows_per_thread
+                };
+
+                scope.spawn(move || {
+                    let mut chunk_results = Vec::with_capacity((end_row - start_row) * (right_x - left_x) as usize);
+
+                    for row in start_row..end_row {
+                        let y = top_y + row as i32;
+                        for x in left_x..right_x {
+                            let pixel = Point { x, y };
+                            let result = algorithm.compute(pixel)?;
+                            chunk_results.push(result);
+                        }
+                    }
+
+                    Ok(chunk_results)
+                })
+            })
+            .collect();
+
+        // Collect results from all threads in order
+        for handle in handles {
+            let chunk = handle
+                .join()
+                .expect("Thread panicked during fractal computation")?;
+            results.extend(chunk);
+        }
+
+        Ok(())
+    })?;
+
+    Ok(results)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::error::Error;
+    use crate::core::actions::generate_fractal::generate_fractal_serial::generate_fractal_serial;
+
+    #[derive(Debug, PartialEq)]
+    struct StubError {}
+
+    impl std::fmt::Display for StubError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "StubError")
+        }
+    }
+
+    impl Error for StubError {}
+
+    #[derive(Debug)]
+    struct StubSuccessAlgorithm {}
+
+    impl FractalAlgorithm for StubSuccessAlgorithm {
+        type Success = u64;
+        type Failure = StubError;
+
+        fn compute(&self, pixel: Point) -> Result<Self::Success, Self::Failure> {
+            Ok((pixel.x + pixel.y) as u64)
+        }
+    }
+
+    #[test]
+    fn test_parallel_generates_same_results_as_sequential() {
+        let algorithm = StubSuccessAlgorithm {};
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 10, y: 8 }).unwrap();
+
+        let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
+        let parallel_results = generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
+
+        assert_eq!(parallel_results, sequential_results);
+    }
+
+    #[test]
+    fn test_parallel_with_single_thread() {
+        let algorithm = StubSuccessAlgorithm {};
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 5, y: 5 }).unwrap();
+
+        let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
+        let parallel_results = generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
+
+        assert_eq!(parallel_results, sequential_results);
+    }
+
+    #[test]
+    fn test_parallel_with_uneven_row_distribution() {
+        let algorithm = StubSuccessAlgorithm {};
+        // 7 rows with 4 threads: 1,1,1,4 distribution
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 7 }).unwrap();
+
+        let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
+        let parallel_results = generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
+
+        assert_eq!(parallel_results, sequential_results);
+    }
+
+    #[test]
+    fn test_parallel_with_more_threads_than_rows() {
+        let algorithm = StubSuccessAlgorithm {};
+        // 2 rows with 4 threads
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 5, y: 2 }).unwrap();
+
+        let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
+        let parallel_results = generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
+
+        assert_eq!(parallel_results, sequential_results);
+    }
+}
