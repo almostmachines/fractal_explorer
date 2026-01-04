@@ -8,7 +8,7 @@ use crate::core::data::point::Point;
 ///
 /// This provides automatic load balancing and simpler API compared to manual threading.
 #[allow(dead_code)]
-pub fn generate_fractal_rayon<Alg>(
+pub fn generate_fractal_parallel_rayon<Alg>(
     pixel_rect: PixelRect,
     algorithm: &Alg,
 ) -> Result<Vec<Alg::Success>, Alg::Failure>
@@ -32,7 +32,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::actions::generate_fractal::generate_fractal::generate_fractal;
+    use crate::core::actions::generate_fractal::generate_fractal_serial::generate_fractal_serial;
     use std::error::Error;
 
     #[derive(Debug, PartialEq)]
@@ -75,8 +75,8 @@ mod tests {
         let algorithm = StubSuccessAlgorithm {};
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 10, y: 8 }).unwrap();
 
-        let sequential_results = generate_fractal(pixel_rect, &algorithm).unwrap();
-        let rayon_results = generate_fractal_rayon(pixel_rect, &algorithm).unwrap();
+        let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
+        let rayon_results = generate_fractal_parallel_rayon(pixel_rect, &algorithm).unwrap();
 
         assert_eq!(rayon_results, sequential_results);
     }
@@ -86,7 +86,7 @@ mod tests {
         let algorithm = StubFailureAlgorithm {};
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 4 }).unwrap();
 
-        let result = generate_fractal_rayon(pixel_rect, &algorithm);
+        let result = generate_fractal_parallel_rayon(pixel_rect, &algorithm);
 
         assert!(result.is_err());
     }
@@ -96,8 +96,8 @@ mod tests {
         let algorithm = StubSuccessAlgorithm {};
         let pixel_rect = PixelRect::new(Point { x: 5, y: 5 }, Point { x: 6, y: 6 }).unwrap();
 
-        let sequential_results = generate_fractal(pixel_rect, &algorithm).unwrap();
-        let rayon_results = generate_fractal_rayon(pixel_rect, &algorithm).unwrap();
+        let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
+        let rayon_results = generate_fractal_parallel_rayon(pixel_rect, &algorithm).unwrap();
 
         assert_eq!(rayon_results, sequential_results);
     }
@@ -107,8 +107,8 @@ mod tests {
         let algorithm = StubSuccessAlgorithm {};
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 100, y: 100 }).unwrap();
 
-        let sequential_results = generate_fractal(pixel_rect, &algorithm).unwrap();
-        let rayon_results = generate_fractal_rayon(pixel_rect, &algorithm).unwrap();
+        let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
+        let rayon_results = generate_fractal_parallel_rayon(pixel_rect, &algorithm).unwrap();
 
         assert_eq!(rayon_results, sequential_results);
     }

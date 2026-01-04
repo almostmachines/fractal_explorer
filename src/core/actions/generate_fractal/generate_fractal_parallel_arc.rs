@@ -10,7 +10,7 @@ use crate::core::data::point::Point;
 /// Each thread computes a range of rows independently. Results are collected
 /// and concatenated in row-major order to match the sequential version.
 #[allow(dead_code)]
-pub fn generate_fractal_parallel<Alg>(
+pub fn generate_fractal_parallel_arc<Alg>(
     pixel_rect: PixelRect,
     algorithm: Arc<Alg>,
     num_threads: usize,
@@ -74,6 +74,7 @@ where
 mod tests {
     use super::*;
     use std::error::Error;
+    use crate::core::actions::generate_fractal::generate_fractal_serial::generate_fractal_serial;
 
     #[derive(Debug, PartialEq)]
     struct StubError {}
@@ -100,58 +101,50 @@ mod tests {
 
     #[test]
     fn test_parallel_generates_same_results_as_sequential() {
-        use crate::core::actions::generate_fractal::generate_fractal::generate_fractal;
-
         let algorithm = StubSuccessAlgorithm {};
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 10, y: 8 }).unwrap();
 
-        let sequential_results = generate_fractal(pixel_rect, &algorithm).unwrap();
+        let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
         let parallel_results =
-            generate_fractal_parallel(pixel_rect, Arc::new(algorithm), 4).unwrap();
+            generate_fractal_parallel_arc(pixel_rect, Arc::new(algorithm), 4).unwrap();
 
         assert_eq!(parallel_results, sequential_results);
     }
 
     #[test]
     fn test_parallel_with_single_thread() {
-        use crate::core::actions::generate_fractal::generate_fractal::generate_fractal;
-
         let algorithm = StubSuccessAlgorithm {};
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 5, y: 5 }).unwrap();
 
-        let sequential_results = generate_fractal(pixel_rect, &algorithm).unwrap();
+        let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
         let parallel_results =
-            generate_fractal_parallel(pixel_rect, Arc::new(algorithm), 1).unwrap();
+            generate_fractal_parallel_arc(pixel_rect, Arc::new(algorithm), 1).unwrap();
 
         assert_eq!(parallel_results, sequential_results);
     }
 
     #[test]
     fn test_parallel_with_uneven_row_distribution() {
-        use crate::core::actions::generate_fractal::generate_fractal::generate_fractal;
-
         let algorithm = StubSuccessAlgorithm {};
         // 7 rows with 4 threads: 1,1,1,4 distribution
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 7 }).unwrap();
 
-        let sequential_results = generate_fractal(pixel_rect, &algorithm).unwrap();
+        let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
         let parallel_results =
-            generate_fractal_parallel(pixel_rect, Arc::new(algorithm), 4).unwrap();
+            generate_fractal_parallel_arc(pixel_rect, Arc::new(algorithm), 4).unwrap();
 
         assert_eq!(parallel_results, sequential_results);
     }
 
     #[test]
     fn test_parallel_with_more_threads_than_rows() {
-        use crate::core::actions::generate_fractal::generate_fractal::generate_fractal;
-
         let algorithm = StubSuccessAlgorithm {};
         // 2 rows with 4 threads
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 5, y: 2 }).unwrap();
 
-        let sequential_results = generate_fractal(pixel_rect, &algorithm).unwrap();
+        let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
         let parallel_results =
-            generate_fractal_parallel(pixel_rect, Arc::new(algorithm), 4).unwrap();
+            generate_fractal_parallel_arc(pixel_rect, Arc::new(algorithm), 4).unwrap();
 
         assert_eq!(parallel_results, sequential_results);
     }

@@ -5,7 +5,7 @@ use crate::core::data::point::Point;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::complex_rect::ComplexRect;
 use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
-use crate::core::actions::generate_fractal::generate_fractal_rayon::generate_fractal_rayon;
+use crate::core::actions::generate_fractal::generate_fractal_parallel_scoped_threads::generate_fractal_parallel_scoped_threads;
 use crate::core::actions::generate_pixel_buffer::generate_pixel_buffer::generate_pixel_buffer;
 use crate::core::fractals::mandelbrot::colour_maps::blue_white_gradient::MandelbrotBlueWhiteGradient;
 use crate::storage::write_ppm::write_ppm;
@@ -31,12 +31,12 @@ pub fn mandelbrot_controller() -> Result<(), Box<dyn std::error::Error>> {
     println!("Image size: {}x{}", width, height);
     println!("Max iterations: {}", max_iterations);
 
-    let mandelbrot_algorithm = MandelbrotAlgorithm::new(pixel_rect, complex_rect, max_iterations)?;
+    let algorithm = MandelbrotAlgorithm::new(pixel_rect, complex_rect, max_iterations)?;
     let start = Instant::now();
-    let fractal = generate_fractal_rayon(pixel_rect, &mandelbrot_algorithm)?;
-    let parallel_duration = start.elapsed();
+    let fractal = generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm)?;
+    let duration = start.elapsed();
 
-    println!("Duration:   {:?}", parallel_duration);
+    println!("Duration:   {:?}", duration);
 
     let colour_map = MandelbrotBlueWhiteGradient::new(max_iterations);
     let pixel_buf = generate_pixel_buffer(fractal, &colour_map, pixel_rect)?;
