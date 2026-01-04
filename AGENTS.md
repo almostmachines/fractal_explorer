@@ -1,41 +1,39 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `src/main.rs` is the binary entry point; `src/lib.rs` exposes reusable components.
-- `src/controllers/` orchestrates the rendering pipeline (CLI entry flow).
-- `src/core/` holds domain logic:
-  - `actions/` use cases with ports (`generate_fractal`, `generate_pixel_buffer`).
-  - `data/` domain types (Complex, Point, PixelRect, PixelBuffer, Colour, etc.).
-  - `fractals/` algorithm implementations and colour maps.
-  - `util/` coordinate conversion helpers.
-- `src/storage/` contains file output (`write_ppm.rs`).
-- `output/` is where rendered images are written (e.g., `output/mandelbrot.ppm`).
+- `src/` holds the Rust crate sources.
+  - `src/main.rs` is the CLI entry point; it currently renders a Mandelbrot image.
+  - `src/lib.rs` exposes the public library API.
+  - `src/controllers/` wires inputs, rendering, and output.
+  - `src/core/` contains fractal algorithms, data types, and rendering actions.
+  - `src/storage/` writes output formats (currently PPM).
+- `output/` contains generated images (for example `output/mandelbrot.ppm`).
+- `target/` is Cargo build output; do not edit or commit it.
 
 ## Build, Test, and Development Commands
-- `cargo build` — debug build.
-- `cargo build --release` — optimized build.
-- `cargo run` — render a Mandelbrot image to `output/mandelbrot.ppm`.
-- `cargo test` — run all unit tests.
-- `cargo test <test_name>` — run a single test by name.
-- `cargo check` — fast type-check.
-- `cargo clippy` — lint warnings and basic code quality checks.
+- `cargo build` — compile the project.
+- `cargo run` — run the default Mandelbrot render (writes to `output/`).
+- `cargo test` — execute unit tests embedded in modules.
+- `cargo fmt` — format code with rustfmt.
+- `cargo clippy` — run lint checks.
+- `cargo llvm-cov` — optional coverage report (requires the tool to be installed).
 
 ## Coding Style & Naming Conventions
-- Use Rust 2024 edition conventions and standard 4-space indentation.
-- `snake_case` for functions/modules; `UpperCamelCase` for types/traits; `SCREAMING_SNAKE_CASE` for constants.
-- Keep domain logic in `src/core/` and I/O in `controllers/` or `storage/`.
-- Prefer small, composable functions and explicit error types in domain code.
-- This repository currently has zero external dependencies; avoid adding new crates unless there is a clear need.
+- Follow standard Rust style (rustfmt defaults, 4-space indentation).
+- Use `snake_case` for functions/modules, `PascalCase` for types, and `SCREAMING_SNAKE_CASE` for constants.
+- Keep modules focused: algorithms in `core/fractals`, shared data in `core/data`, and utilities in `core/util`.
 
 ## Testing Guidelines
-- Tests are inline `mod tests` blocks in the modules they cover (see `src/core/data/*.rs`).
-- Use `#[test]` with descriptive names, e.g., `complex_adds_imag_part`.
-- Run the full suite with `cargo test` before submitting changes.
+- Tests live next to the code under `#[cfg(test)]` blocks.
+- Prefer small, deterministic unit tests that exercise core math and pixel operations.
+- Name tests descriptively (for example `test_generate_fractal_returns_ok`).
+- Run all tests with `cargo test` before opening a PR.
 
 ## Commit & Pull Request Guidelines
-- Commit messages are short, imperative summaries (e.g., “Pass PixelBuffer to write_ppm by value”).
-- Keep commits focused on a single change or refactor.
-- PRs should include: a brief summary, key commands run (e.g., `cargo test`), and any generated artifacts. Avoid committing `output/*.ppm` unless explicitly requested.
+- Commit subjects are short, sentence-case, imperative (examples from history: `Rename fractal generation actions`).
+- Keep commits scoped; avoid mixing refactors with feature changes.
+- PRs should include: a concise summary, tests run, and sample output images or notes when rendering changes (`output/*.ppm`).
 
-## Architecture Notes
-- The project follows Ports & Adapters (Hexagonal Architecture). Keep new algorithms behind the existing `FractalAlgorithm` and `ColourMap` ports to preserve separation.
+## Configuration & Output Notes
+- Rendering defaults (size, iterations, output path) are set in `src/controllers/mandelbrot.rs`.
+- Generated files should be kept in `output/` and should not be used as inputs.

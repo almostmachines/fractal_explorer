@@ -1,83 +1,111 @@
 # Fractal Explorer
 
-A Mandelbrot fractal renderer written in pure Rust with zero external dependencies. Uses **Ports & Adapters (Hexagonal Architecture)** for clean separation of concerns.
+A Mandelbrot set renderer written in Rust that generates PPM images. Features one serial and multiple parallel computation strategies and a clean ports & adapters architecture for easy extension.
 
 ## Features
 
-- Custom `Complex` number type implementation
-- Mandelbrot escape-time algorithm (`z = z² + c`, escape when |z| > 2)
-- PPM binary format (P6) image output
-- Trait-based abstractions for algorithms and colour mapping
-- Comprehensive validation with custom error types
+- Mandelbrot set fractal generation
+- Multiple parallelization strategies (Rayon, scoped threads, Arc-based)
+- Blue-white gradient colour mapping
+- PPM image output
+- Trait-based architecture for adding new fractals and colour schemes
 
-## Quick Start
+## Requirements
+
+- Rust 2024 edition
+- Rayon 1.10
+
+## Building and Running
 
 ```bash
-# Build and run
+# Debug build
+cargo build
+
+# Optimized build
+cargo build --release
+
+# Generate fractal image
 cargo run
 
-# This generates output/mandelbrot.ppm (800x600, 256 iterations)
+# Run with release optimizations
+cargo run --release
 ```
 
-The default render produces a classic Mandelbrot view covering the complex plane from (-2.5, -1.0) to (1.0, 1.0).
+The program outputs a Mandelbrot set image to `output/mandelbrot.ppm`.
 
-## Build Commands
+## Output
 
-```bash
-cargo build                 # Debug build
-cargo build --release       # Optimized release build
-cargo test                  # Run all tests
-cargo check                 # Quick type checking
-cargo clippy                # Lint warnings
-```
+Default configuration:
+- Image size: 800x600 pixels
+- Complex plane: real [-2.5, 1.0], imaginary [-1.0, 1.0]
+- Max iterations: 256
+- Colour scheme: Blue-white gradient
 
 ## Architecture
+
+The project uses a ports & adapters pattern with trait-based abstractions.
 
 ### Data Flow
 
 ```
-PixelRect + ComplexRect
-    → FractalAlgorithm trait (Mandelbrot implementation)
-    → generate_fractal() → Vec<u32> (iterations per pixel)
-    → ColourMap trait (blue_white_gradient implementation)
-    → generate_pixel_buffer() → PixelBuffer
-    → write_ppm() → output/mandelbrot.ppm
+mandelbrot_controller
+    │
+    ├─► generate_fractal_parallel_rayon() → Vec<u32> iteration counts
+    │     Uses FractalAlgorithm trait
+    │
+    ├─► generate_pixel_buffer() → PixelBuffer RGB data
+    │     Uses ColourMap trait
+    │
+    └─► write_ppm() → output/mandelbrot.ppm
 ```
 
 ### Module Structure
 
 ```
 src/
-├── main.rs                     # Entry point
-├── lib.rs                      # Library exports
-├── controllers/                # Orchestrates the rendering pipeline
-│   └── mandelbrot.rs
+├── main.rs                 # Entry point
+├── lib.rs                  # Library exports
+├── controllers/            # Orchestration logic
 ├── core/
-│   ├── actions/                # Use cases with trait-based ports
-│   │   ├── generate_fractal/   # Fractal computation action
-│   │   │   └── ports/          # FractalAlgorithm trait
-│   │   └── generate_pixel_buffer/  # Colour mapping action
-│   │       └── ports/          # ColourMap trait
-│   ├── data/                   # Domain types
-│   │   ├── complex.rs          # Complex number type
-│   │   ├── complex_rect.rs     # Region in complex plane
-│   │   ├── pixel_rect.rs       # Image dimensions
-│   │   ├── pixel_buffer.rs     # Raw pixel data
-│   │   ├── point.rs            # 2D integer point
-│   │   └── colour.rs           # RGB colour type
-│   ├── fractals/               # Algorithm implementations
-│   │   └── mandelbrot/
-│   │       ├── algorithm.rs    # Mandelbrot computation
-│   │       └── colour_maps/    # Colour mapping strategies
-│   └── util/                   # Coordinate conversion utilities
-└── storage/                    # PPM image file output
-    └── write_ppm.rs
+│   ├── data/               # Data types (Complex, Point, Colour, etc.)
+│   ├── fractals/           # Fractal algorithms and colour maps
+│   ├── actions/            # Fractal generation and pixel buffer creation
+│   └── util/               # Coordinate conversion utilities
+└── storage/                # PPM file output
 ```
+
+### Key Traits
+
+- **FractalAlgorithm**: Implement to add new fractal types
+- **ColourMap**: Implement to add new colour schemes
 
 ## Extending
 
-The hexagonal architecture makes it easy to add:
+### Adding a New Fractal
 
-- **New fractal algorithms**: Implement the `FractalAlgorithm` trait
-- **New colour schemes**: Implement the `ColourMap` trait
-- **New output formats**: Add adapters in `storage/`
+1. Implement the `FractalAlgorithm` trait in `src/core/fractals/`
+2. Create an algorithm struct with the required computation logic
+3. Use it with any of the generation functions
+
+### Adding a New Colour Map
+
+1. Implement the `ColourMap` trait in a new module
+2. Define the `map_iteration_count_to_colour()` method
+3. Use it with `generate_pixel_buffer()`
+
+## Testing
+
+```bash
+# Run all tests (87 total)
+cargo test
+
+# Run unit tests only
+cargo test --lib
+
+# Run a specific test
+cargo test <test_name>
+```
+
+## License
+
+MIT
