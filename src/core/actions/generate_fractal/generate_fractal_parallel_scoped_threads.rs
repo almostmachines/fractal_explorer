@@ -1,8 +1,63 @@
+use std::error::Error;
+use std::fmt;
 use std::thread;
 
+use crate::core::actions::generate_fractal::generate_fractal_serial::generate_fractal_serial;
 use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
-use crate::core::data::pixel_rect::PixelRect;
+use crate::core::data::pixel_rect::{PixelRect, PixelRectError};
 use crate::core::data::point::Point;
+
+#[derive(Debug)]
+pub enum GenerateFractalParallelError<AlgFailure: Error> {
+    Algorithm(AlgFailure),
+    PixelRect(PixelRectError),
+}
+
+impl<AlgFailure: Error> fmt::Display for GenerateFractalParallelError<AlgFailure> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Algorithm(err) => write!(f, "fractal algorithm error: {}", err),
+            Self::PixelRect(err) => write!(f, "pixel rect error: {}", err),
+        }
+    }
+}
+
+impl<AlgFailure: Error + 'static> Error for GenerateFractalParallelError<AlgFailure> {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Algorithm(err) => Some(err),
+            Self::PixelRect(err) => Some(err),
+        }
+    }
+}
+
+impl<AlgFailure: Error> From<PixelRectError> for GenerateFractalParallelError<AlgFailure> {
+    fn from(err: PixelRectError) -> Self {
+        Self::PixelRect(err)
+    }
+}
+
+fn generate_band_pixel_rect(band_num: u32, band_height: u32, total_bands: u32, bounding_rect: PixelRect) -> Result<PixelRect, PixelRectError> {
+    let band_top = (band_num * band_height) as i32;
+
+    let band_bottom = if band_num == total_bands - 1 {
+        bounding_rect.height() as i32 // Last thread takes any remainder rows
+    } else {
+        ((band_num + 1) * band_height) as i32
+    };
+
+    let band_top_left = Point {
+        x: bounding_rect.top_left().x,
+        y: bounding_rect.top_left().y + band_top,
+    };
+
+    let band_bottom_right = Point {
+        x: bounding_rect.bottom_right().x,
+        y: bounding_rect.top_left().y + band_bottom,
+    };
+
+    PixelRect::new(band_top_left, band_bottom_right)
+}
 
 /// Generates fractal data in parallel by splitting the image into horizontal bands.
 ///
@@ -12,60 +67,44 @@ use crate::core::data::point::Point;
 pub fn generate_fractal_parallel_scoped_threads<Alg: FractalAlgorithm + Send + Sync>(
     pixel_rect: PixelRect,
     algorithm: &Alg,
-) -> Result<Vec<Alg::Success>, Alg::Failure>
+) -> Result<Vec<Alg::Success>, GenerateFractalParallelError<Alg::Failure>>
 where
     Alg::Success: Send,
     Alg::Failure: Send,
 {
-    let num_threads = std::thread::available_parallelism()
+    let num_avail_threads = std::thread::available_parallelism()
         .map(|n| n.get())
-        .unwrap_or(4);
+        .unwrap_or(4) as u32;
 
-    let height = pixel_rect.height() as usize;
-    let top_y = pixel_rect.top_left().y;
-    let left_x = pixel_rect.top_left().x;
-    let right_x = pixel_rect.bottom_right().x;
-    let rows_per_thread = height / num_threads;
-    let total_pixels = pixel_rect.size() as usize;
-    let mut results = Vec::with_capacity(total_pixels);
+    let num_threads = if num_avail_threads <= pixel_rect.height() {
+        num_avail_threads
+    } else {
+        pixel_rect.height()
+    };
 
-    thread::scope(|scope| {
-        let handles: Vec<_> = (0..num_threads)
+    let band_height = pixel_rect.height() / num_threads;
+
+    let results = thread::scope(|scope| -> Result<Vec<Alg::Success>, GenerateFractalParallelError<Alg::Failure>> {
+        let scoped_results = (0..num_threads)
             .map(|thread_idx| {
-                // Calculate row range for this thread
-                let start_row = thread_idx * rows_per_thread;
-                let end_row = if thread_idx == num_threads - 1 {
-                    height // Last thread takes any remainder rows
-                } else {
-                    (thread_idx + 1) * rows_per_thread
-                };
-
                 scope.spawn(move || {
-                    let mut chunk_results = Vec::with_capacity((end_row - start_row) * (right_x - left_x) as usize);
-
-                    for row in start_row..end_row {
-                        let y = top_y + row as i32;
-                        for x in left_x..right_x {
-                            let pixel = Point { x, y };
-                            let result = algorithm.compute(pixel)?;
-                            chunk_results.push(result);
-                        }
-                    }
-
-                    Ok(chunk_results)
+                    generate_fractal_serial(
+                        generate_band_pixel_rect(thread_idx, band_height, num_threads, pixel_rect)?,
+                        algorithm
+                    )
+                    .map_err(GenerateFractalParallelError::Algorithm)
                 })
+                .join().expect("Thread panicked during fractal computation")
             })
-            .collect();
+            .collect::<
+                Result<Vec<Vec<Alg::Success>>,
+                GenerateFractalParallelError<Alg::Failure>>
+            >()?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<Alg::Success>>();
 
-        // Collect results from all threads in order
-        for handle in handles {
-            let chunk = handle
-                .join()
-                .expect("Thread panicked during fractal computation")?;
-            results.extend(chunk);
-        }
-
-        Ok(())
+        Ok(scoped_results)
     })?;
 
     Ok(results)
