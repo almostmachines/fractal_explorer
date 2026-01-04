@@ -94,8 +94,10 @@ where
                     )
                     .map_err(GenerateFractalParallelError::Algorithm)
                 })
-                .join().expect("Thread panicked during fractal computation")
             })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(|handle| handle.join().expect("Thread panicked during fractal computation"))
             .collect::<
                 Result<Vec<Vec<Alg::Success>>,
                 GenerateFractalParallelError<Alg::Failure>>
