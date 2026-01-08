@@ -18,7 +18,7 @@ pub fn mandelbrot_controller() -> Result<(), Box<dyn std::error::Error>> {
 
     let pixel_rect = PixelRect::new(
         Point { x: 0, y: 0 },
-        Point { x: width, y: height },
+        Point { x: width - 1, y: height - 1 },
     )?;
 
     // Classic Mandelbrot view
