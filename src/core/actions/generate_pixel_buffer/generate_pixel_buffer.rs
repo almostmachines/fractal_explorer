@@ -102,7 +102,7 @@ mod tests {
     fn test_generates_pixel_buffer_correctly() {
         let input: Vec<u8> = vec![1, 2, 3, 4, 5, 6];
         let mapper = StubColourMapSuccess {};
-        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 2 }).unwrap();
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 2, y: 1 }).unwrap();
         let expected_buffer: PixelBufferData = vec![1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6];
         let expected_results = PixelBuffer::from_data(pixel_rect, expected_buffer).unwrap();
         let results = generate_pixel_buffer(input, &mapper, pixel_rect).unwrap();
@@ -129,6 +129,6 @@ mod tests {
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 1, y: 1 }).unwrap();
         let results = generate_pixel_buffer(input, &mapper, pixel_rect);
 
-        assert!(matches!(results, Err(GeneratePixelBufferError::PixelBuffer(PixelBufferError::BoundsMismatch { pixel_rect_size: 3, buffer_size: 18 }))));
+        assert!(matches!(results, Err(GeneratePixelBufferError::PixelBuffer(PixelBufferError::BoundsMismatch { pixel_rect_size: 12, buffer_size: 18 }))));
     }
 }

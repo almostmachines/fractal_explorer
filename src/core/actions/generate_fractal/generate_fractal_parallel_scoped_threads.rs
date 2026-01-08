@@ -6,6 +6,7 @@ use crate::core::actions::generate_fractal::generate_fractal_serial::generate_fr
 use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
 use crate::core::data::pixel_rect::{PixelRect, PixelRectError};
 use crate::core::data::point::Point;
+use crate::core::util::calculate_threads_for_pixel_rect_banding::calculate_threads_for_pixel_rect_banding;
 
 #[derive(Debug)]
 pub enum GenerateFractalParallelError<AlgFailure: Error> {
@@ -37,13 +38,13 @@ impl<AlgFailure: Error> From<PixelRectError> for GenerateFractalParallelError<Al
     }
 }
 
-fn generate_band_pixel_rect(band_num: u32, band_height: u32, total_bands: u32, bounding_rect: PixelRect) -> Result<PixelRect, PixelRectError> {
+fn generate_pixel_rect_band(band_num: u32, band_height: u32, total_bands: u32, bounding_rect: PixelRect) -> Result<PixelRect, PixelRectError> {
     let band_top = (band_num * band_height) as i32;
 
     let band_bottom = if band_num == total_bands - 1 {
-        bounding_rect.height() as i32 // Last thread takes any remainder rows
+        (bounding_rect.height() - 1) as i32 // Last thread takes any remainder rows
     } else {
-        ((band_num + 1) * band_height) as i32
+        (((band_num + 1) * band_height) - 1) as i32
     };
 
     let band_top_left = Point {
@@ -72,16 +73,7 @@ where
     Alg::Success: Send,
     Alg::Failure: Send,
 {
-    let num_avail_threads = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(4) as u32;
-
-    let num_threads = if num_avail_threads <= pixel_rect.height() {
-        num_avail_threads
-    } else {
-        pixel_rect.height()
-    };
-
+    let num_threads = calculate_threads_for_pixel_rect_banding(pixel_rect);
     let band_height = pixel_rect.height() / num_threads;
 
     let results = thread::scope(|scope| -> Result<Vec<Alg::Success>, GenerateFractalParallelError<Alg::Failure>> {
@@ -89,7 +81,7 @@ where
             .map(|thread_idx| {
                 scope.spawn(move || {
                     generate_fractal_serial(
-                        generate_band_pixel_rect(thread_idx, band_height, num_threads, pixel_rect)?,
+                        generate_pixel_rect_band(thread_idx, band_height, num_threads, pixel_rect)?,
                         algorithm
                     )
                     .map_err(GenerateFractalParallelError::Algorithm)

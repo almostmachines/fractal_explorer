@@ -27,10 +27,13 @@ pub struct PixelRect {
 
 impl PixelRect {
     pub fn new(top_left: Point, bottom_right: Point) -> Result<Self, PixelRectError> {
-        let width = bottom_right.x - top_left.x;
-        let height = bottom_right.y - top_left.y;
+        let dx = (bottom_right.x as i64) - (top_left.x as i64);
+        let dy = (bottom_right.y as i64) - (top_left.y as i64);
 
-        if width <= 0 || height <= 0 {
+        let width  = (dx + if dx >= 0 { 1 } else { -1 }) as i32;
+        let height = (dy + if dy >= 0 { 1 } else { -1 }) as i32;
+
+        if width < 2 || height < 2 {
             return Err(PixelRectError::InvalidSize { width, height });
         }
 
@@ -52,12 +55,12 @@ impl PixelRect {
 
     #[must_use]
     pub fn width(&self) -> u32 {
-        (self.bottom_right.x - self.top_left.x) as u32
+        (self.bottom_right.x - self.top_left.x + 1) as u32
     }
 
     #[must_use]
     pub fn height(&self) -> u32 {
-        (self.bottom_right.y - self.top_left.y) as u32
+        (self.bottom_right.y - self.top_left.y + 1) as u32
     }
 
     #[must_use]
@@ -100,26 +103,16 @@ mod tests {
             Point { x: 110, y: 80 },
         ).unwrap();
 
-        assert_eq!(rect.width(), 120);
-        assert_eq!(rect.height(), 100);
-        assert_eq!(rect.size(), 12000);
+        assert_eq!(rect.width(), 121);
+        assert_eq!(rect.height(), 101);
+        assert_eq!(rect.size(), 12221);
     }
 
     #[test]
     fn test_pixel_rect_dimensions_must_be_positive() {
-        let rect_zero_width = PixelRect::new(
-            Point { x: 0, y: 0 },
-            Point { x: 0, y: 100 },
-        );
-
         let rect_negative_width = PixelRect::new(
             Point { x: 0, y: 0 },
             Point { x: -100, y: 10 },
-        );
-
-        let rect_zero_height = PixelRect::new(
-            Point { x: 0, y: 0 },
-            Point { x: 100, y: 0 },
         );
 
         let rect_negative_height = PixelRect::new(
@@ -127,22 +120,42 @@ mod tests {
             Point { x: 100, y: -10 },
         );
 
-        let rect_zero_width_and_height = PixelRect::new(
-            Point { x: 2, y: 2 },
-            Point { x: 2, y: 2 },
-        );
-
         let rect_negative_width_and_height = PixelRect::new(
             Point { x: 2, y: 2 },
             Point { x: -2, y: -2 },
         );
 
-        assert_eq!(rect_zero_width, Err(PixelRectError::InvalidSize { width: 0, height: 100 }));
-        assert_eq!(rect_negative_width, Err(PixelRectError::InvalidSize { width: -100, height: 10 }));
-        assert_eq!(rect_zero_height, Err(PixelRectError::InvalidSize { width: 100, height: 0 }));
-        assert_eq!(rect_negative_height, Err(PixelRectError::InvalidSize { width: 100, height: -10 }));
-        assert_eq!(rect_zero_width_and_height, Err(PixelRectError::InvalidSize { width: 0, height: 0 }));
-        assert_eq!(rect_negative_width_and_height, Err(PixelRectError::InvalidSize { width: -4, height: -4 }));
+        assert_eq!(rect_negative_width, Err(PixelRectError::InvalidSize { width: -101, height: 11 }));
+        assert_eq!(rect_negative_height, Err(PixelRectError::InvalidSize { width: 101, height: -11 }));
+        assert_eq!(rect_negative_width_and_height, Err(PixelRectError::InvalidSize { width: -5, height: -5 }));
+    }
+
+    #[test]
+    fn test_pixel_rect_must_be_at_least_two_pixels_wide_and_tall() {
+        let single_pixel = PixelRect::new(
+            Point { x: 0, y: 0 },
+            Point { x: 0, y: 0 },
+        );
+
+        let one_pixel_tall = PixelRect::new(
+            Point { x: 0, y: 0 },
+            Point { x: 10, y: 0 },
+        );
+
+        let one_pixel_wide = PixelRect::new(
+            Point { x: 0, y: 0 },
+            Point { x: 0, y: 10 },
+        );
+
+        let two_pixels_square = PixelRect::new(
+            Point { x: 0, y: 0 },
+            Point { x: 1, y: 1 },
+        );
+
+        assert_eq!(single_pixel, Err(PixelRectError::InvalidSize { width: 1, height: 1 }));
+        assert_eq!(one_pixel_tall, Err(PixelRectError::InvalidSize { width: 11, height: 1 }));
+        assert_eq!(one_pixel_wide, Err(PixelRectError::InvalidSize { width: 1, height: 11 }));
+        assert!(two_pixels_square.is_ok());
     }
 
     #[test]

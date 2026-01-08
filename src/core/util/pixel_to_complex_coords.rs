@@ -33,8 +33,8 @@ pub fn pixel_to_complex_coords(
 
     let relative_pixel_x = (pixel_position.x - pixel_rect.top_left().x) as f64;
     let relative_pixel_y = (pixel_position.y - pixel_rect.top_left().y) as f64;
-    let real = complex_rect.top_left().real + (relative_pixel_x / pixel_rect.width() as f64) * complex_rect.width();
-    let imag = complex_rect.top_left().imag + (relative_pixel_y / pixel_rect.height() as f64) * complex_rect.height();
+    let real = complex_rect.top_left().real + (relative_pixel_x / (pixel_rect.width() - 1) as f64) * complex_rect.width();
+    let imag = complex_rect.top_left().imag + (relative_pixel_y / (pixel_rect.height() - 1) as f64) * complex_rect.height();
 
     Ok(Complex { real, imag })
 }

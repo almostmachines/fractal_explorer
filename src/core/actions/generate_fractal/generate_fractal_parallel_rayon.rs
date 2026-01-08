@@ -17,9 +17,9 @@ where
     Alg::Success: Send,
     Alg::Failure: Send,
 {
-    let pixels: Vec<Point> = (pixel_rect.top_left().y..pixel_rect.bottom_right().y)
+    let pixels: Vec<Point> = (pixel_rect.top_left().y..=pixel_rect.bottom_right().y)
         .flat_map(|y| {
-            (pixel_rect.top_left().x..pixel_rect.bottom_right().x).map(move |x| Point { x, y })
+            (pixel_rect.top_left().x..=pixel_rect.bottom_right().x).map(move |x| Point { x, y })
         })
         .collect();
 
@@ -92,7 +92,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rayon_with_single_pixel() {
+    fn test_rayon_with_smallest_dimensions() {
         let algorithm = StubSuccessAlgorithm {};
         let pixel_rect = PixelRect::new(Point { x: 5, y: 5 }, Point { x: 6, y: 6 }).unwrap();
 

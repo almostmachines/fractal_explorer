@@ -5,9 +5,9 @@ use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlg
 #[allow(dead_code)]
 pub fn generate_fractal_serial<Alg: FractalAlgorithm>(pixel_rect: PixelRect, algorithm: &Alg) -> Result<Vec<Alg::Success>, Alg::Failure>
 {
-    (pixel_rect.top_left().y..pixel_rect.bottom_right().y)
+    (pixel_rect.top_left().y..=pixel_rect.bottom_right().y)
         .flat_map(|y| {
-            (pixel_rect.top_left().x..pixel_rect.bottom_right().x)
+            (pixel_rect.top_left().x..=pixel_rect.bottom_right().x)
                 .map(move |x| Point { x, y })
         })
         .map(|pixel| {
@@ -62,7 +62,7 @@ mod tests {
     #[test]
     fn test_generates_correct_results() {
         let algorithm = StubSuccessAlgorithm {};
-        let pixel_rect = PixelRect::new(Point { x:0, y:0 }, Point { x:3, y:4 }).unwrap();
+        let pixel_rect = PixelRect::new(Point { x:0, y:0 }, Point { x:2, y:3 }).unwrap();
         let expected_results: Vec<u64> = vec![0, 1, 2, 1, 2, 3, 2, 3, 4, 3, 4, 5];
         let results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
 

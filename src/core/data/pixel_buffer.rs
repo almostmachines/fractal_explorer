@@ -124,14 +124,14 @@ mod tests {
     fn create_pixel_rect(width: i32, height: i32) -> PixelRect {
         PixelRect::new(
             Point { x: 0, y: 0 },
-            Point { x: width, y: height },
+            Point { x: width - 1, y: height - 1 },
         ).unwrap()
     }
 
     fn create_offset_pixel_rect(x: i32, y: i32, width: i32, height: i32) -> PixelRect {
         PixelRect::new(
             Point { x, y },
-            Point { x: x + width, y: y + height },
+            Point { x: x + width - 1, y: y + height - 1 },
         ).unwrap()
     }
 
@@ -151,14 +151,6 @@ mod tests {
         let buffer = PixelBuffer::new(pixel_rect);
 
         assert_eq!(buffer.buffer_size(), 15000); // 100 * 50 * 3
-    }
-
-    #[test]
-    fn test_new_with_single_pixel() {
-        let pixel_rect = create_pixel_rect(1, 1);
-        let buffer = PixelBuffer::new(pixel_rect);
-
-        assert_eq!(buffer.buffer_size(), 3); // 1 * 1 * 3
     }
 
     #[test]
@@ -234,13 +226,13 @@ mod tests {
 
         assert_eq!(buffer.pixel_rect(), pixel_rect);
         assert_eq!(buffer.pixel_rect().top_left(), Point { x: 10, y: 20 });
-        assert_eq!(buffer.pixel_rect().bottom_right(), Point { x: 40, y: 60 });
+        assert_eq!(buffer.pixel_rect().bottom_right(), Point { x: 39, y: 59 });
     }
 
     #[test]
     fn test_buffer_getter() {
-        let pixel_rect = create_pixel_rect(2, 1);
-        let data: Vec<u8> = vec![1, 2, 3, 4, 5, 6];
+        let pixel_rect = create_pixel_rect(2, 2);
+        let data: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
         let buffer = PixelBuffer::from_data(pixel_rect, data.clone()).unwrap();
 
         assert_eq!(buffer.buffer(), &data);
@@ -448,7 +440,7 @@ mod tests {
 
         assert_eq!(
             format!("{}", error),
-            "pixel at x:5, y:5 outside of PixelRect bounds top:20, left:10, bottom:120, right:110"
+            "pixel at x:5, y:5 outside of PixelRect bounds top:20, left:10, bottom:119, right:109"
         );
     }
 
@@ -464,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_pixel_buffer_debug() {
-        let pixel_rect = create_pixel_rect(1, 1);
+        let pixel_rect = create_pixel_rect(2, 2);
         let buffer = PixelBuffer::new(pixel_rect);
 
         let debug_str = format!("{:?}", buffer);
