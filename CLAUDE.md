@@ -61,3 +61,9 @@ Hardcoded in `mandelbrot_controller()`:
 - Image: 800x600 pixels
 - Complex plane: real [-2.5, 1.0], imaginary [-1.0, 1.0]
 - Max iterations: 256
+
+## Tips for Claude
+
+### Generating tree diagrams
+
+You can use the command `tree --gitignore`.

@@ -37,3 +37,6 @@
 ## Configuration & Output Notes
 - Rendering defaults (size, iterations, output path) are set in `src/controllers/mandelbrot.rs`.
 - Generated files should be kept in `output/` and should not be used as inputs.
+
+## Tips
+- To generate tree diagrams you can use the command `tree --gitignore`.
