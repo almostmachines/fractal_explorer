@@ -41,6 +41,9 @@
 ## Tips
 - To generate tree diagrams you can use the command `tree --gitignore`.
 
+## Task tracking
+- Use 'bd' for task tracking
+
 ## Landing the Plane (Session Completion)
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
