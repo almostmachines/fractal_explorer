@@ -23,6 +23,31 @@
   - Reason: the sandbox seccomp profile blocks Wayland socket connections, which triggers `WaylandError(Connection(NoCompositor))` even when Wayland is available.
   - Alternative: run the session in `danger-full-access` mode so GUI commands can execute without needing per-command escalation.
 
+## GUI Visual Testing
+- visually test the GUI by taking screenshots with `grim` (Wayland).
+
+```bash
+# Build and run GUI in background
+cargo run --bin gui --features gui &
+GUI_PID=$!
+
+# Wait for window to render
+sleep 2
+
+# Capture screenshot
+grim /tmp/fractal_gui_test.png
+
+# Kill the GUI
+kill $GUI_PID
+
+# View the screenshot using the Read tool on /tmp/fractal_gui_test.png
+```
+
+**Limitations:**
+- Snapshot-based, not real-time
+- Cannot interact with GUI (clicking, dragging)
+- May need timing adjustments for slower renders
+
 ## Coding Style & Naming Conventions
 - Follow standard Rust style (rustfmt defaults, 4-space indentation).
 - Use `snake_case` for functions/modules, `PascalCase` for types, and `SCREAMING_SNAKE_CASE` for constants.

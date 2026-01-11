@@ -118,3 +118,29 @@ When ending a work session, complete all steps below.
 ### Generating tree diagrams
 
 You can use the command `tree --gitignore`.
+
+### GUI Visual Testing
+
+You can visually test the GUI by taking screenshots with `grim` (Wayland).
+
+```bash
+# Build and run GUI in background
+cargo run --bin gui --features gui &
+GUI_PID=$!
+
+# Wait for window to render
+sleep 2
+
+# Capture screenshot
+grim /tmp/fractal_gui_test.png
+
+# Kill the GUI
+kill $GUI_PID
+
+# View the screenshot using the Read tool on /tmp/fractal_gui_test.png
+```
+
+**Limitations:**
+- Snapshot-based, not real-time
+- Cannot interact with GUI (clicking, dragging)
+- May need timing adjustments for slower renders
