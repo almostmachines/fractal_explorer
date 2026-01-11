@@ -118,6 +118,9 @@ impl App {
         // Render with egui overlay
         let textures_delta = egui_output.textures_delta;
         self.pixels.render_with(|encoder, render_target, context| {
+            // First, render the pixels framebuffer (the scaling pass)
+            context.scaling_renderer.render(encoder, render_target);
+
             // Upload new/changed egui textures
             for (id, delta) in &textures_delta.set {
                 self.egui_renderer
