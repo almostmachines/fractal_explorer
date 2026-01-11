@@ -18,6 +18,11 @@
 - `cargo clippy` — run lint checks.
 - `cargo llvm-cov` — optional coverage report (requires the tool to be installed).
 
+## GUI Run Permissions
+- When running the GUI app (for example `cargo run --features gui --bin gui`), **always request escalated permissions**.
+  - Reason: the sandbox seccomp profile blocks Wayland socket connections, which triggers `WaylandError(Connection(NoCompositor))` even when Wayland is available.
+  - Alternative: run the session in `danger-full-access` mode so GUI commands can execute without needing per-command escalation.
+
 ## Coding Style & Naming Conventions
 - Follow standard Rust style (rustfmt defaults, 4-space indentation).
 - Use `snake_case` for functions/modules, `PascalCase` for types, and `SCREAMING_SNAKE_CASE` for constants.
