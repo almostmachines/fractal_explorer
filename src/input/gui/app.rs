@@ -26,6 +26,8 @@ struct App {
     egui_state: EguiWinitState,
     /// egui-wgpu renderer for drawing UI on top of pixels.
     egui_renderer: EguiRenderer,
+    /// Test slider value to demonstrate UI interactivity.
+    test_slider_value: f32,
 }
 
 impl App {
@@ -64,14 +66,19 @@ impl App {
             egui_ctx,
             egui_state,
             egui_renderer,
+            test_slider_value: 0.5,
         }
     }
 
     /// Draws a checkerboard pattern to prove the rendering pipeline works.
+    /// The slider value controls the red channel tint.
     fn draw_placeholder(&mut self) {
         let frame = self.pixels.frame_mut();
         let width = self.width as usize;
         let tile_size = 32;
+
+        // Use slider to control red tint (0.0 = no red, 1.0 = full red)
+        let red_tint = (self.test_slider_value * 255.0) as u8;
 
         for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
             let x = i % width;
@@ -81,10 +88,10 @@ impl App {
             let tile_y = y / tile_size;
             let is_dark = (tile_x + tile_y) % 2 == 0;
 
-            let color = if is_dark { 60 } else { 200 };
-            pixel[0] = color; // R
-            pixel[1] = color; // G
-            pixel[2] = color; // B
+            let base = if is_dark { 60 } else { 200 };
+            pixel[0] = base.max(red_tint); // R (tinted by slider)
+            pixel[1] = base; // G
+            pixel[2] = base; // B
             pixel[3] = 255; // A (opaque)
         }
     }
@@ -177,11 +184,21 @@ impl App {
         let raw_input = self.egui_state.take_egui_input(window);
 
         self.egui_ctx.run(raw_input, |ctx| {
-            // Minimal debug window to prove egui is working
-            egui::Window::new("Debug").show(ctx, |ui| {
-                ui.label("egui is working!");
-                ui.label(format!("Window size: {}x{}", self.width, self.height));
-            });
+            egui::Window::new("Debug Panel")
+                .default_pos([10.0, 10.0])
+                .default_size([200.0, 100.0])
+                .show(ctx, |ui| {
+                    ui.heading("Fractal Explorer");
+                    ui.separator();
+
+                    ui.label("Test slider:");
+                    ui.add(
+                        egui::Slider::new(&mut self.test_slider_value, 0.0..=1.0).text("value"),
+                    );
+
+                    ui.separator();
+                    ui.label(format!("Window size: {}x{}", self.width, self.height));
+                });
         })
     }
 
