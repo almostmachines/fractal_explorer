@@ -1,3 +1,7 @@
+//! GUI binary for interactive fractal exploration.
+//!
+//! Run with: cargo run --features gui --bin gui
+
 fn main() {
-    println!("GUI binary placeholder - implementation coming soon");
+    fractal_explorer::run_gui();
 }
