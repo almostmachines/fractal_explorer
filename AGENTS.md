@@ -64,8 +64,8 @@ bd sync               # Commit and push changes
 2. **Claim**: Use `bd update <id> --status=in_progress`.
 3. **Work**: Implement the issue and test.
 4. **Discovery**: If you discover new work, create a new bead with discovered-from:<parent-id>.
-5. **Complete**: Mark the issue as closed with `bd close <id>`. Commit and push your work. Run `bd sync`.
-6. **Sync**: Always run `bd sync` at session end.
+5. **Complete**: Mark the issue as closed with `bd close <id>`. Commit and push your work.
+6. **Sync**: Always run `bd sync` after marking an issue as complete, even if you didn't commit any work.
 
 ### Landing the Plane (Session Completion)
 
