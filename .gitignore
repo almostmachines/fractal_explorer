@@ -2,3 +2,4 @@
 /output/*
 !/output/.gitkeep
 .bv/
+.beads/.bv.lock
