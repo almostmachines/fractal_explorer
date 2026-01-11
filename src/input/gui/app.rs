@@ -2,7 +2,8 @@
 
 use egui::Context;
 use egui_winit::State as EguiWinitState;
-use pixels::{Pixels, SurfaceTexture};
+use egui_wgpu::Renderer as EguiRenderer;
+use pixels::{wgpu, Pixels, SurfaceTexture};
 use winit::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
@@ -23,6 +24,8 @@ struct App {
     egui_ctx: Context,
     /// egui-winit state for input handling.
     egui_state: EguiWinitState,
+    /// egui-wgpu renderer for drawing UI on top of pixels.
+    egui_renderer: EguiRenderer,
 }
 
 impl App {
@@ -44,6 +47,14 @@ impl App {
             None, // max_texture_side, use default
         );
 
+        // Initialize egui-wgpu renderer, sharing device with pixels
+        let egui_renderer = EguiRenderer::new(
+            pixels.device(),
+            pixels.render_texture_format(),
+            None, // depth format
+            1,    // msaa samples
+        );
+
         Self {
             pixels,
             width: size.width,
@@ -52,6 +63,7 @@ impl App {
             focused: true,
             egui_ctx,
             egui_state,
+            egui_renderer,
         }
     }
 
@@ -77,14 +89,70 @@ impl App {
         }
     }
 
-    /// Renders the current frame to the window.
-    fn render(&mut self) -> Result<(), pixels::Error> {
+    /// Renders the current frame to the window, including egui overlay.
+    fn render(&mut self, egui_output: egui::FullOutput) -> Result<(), pixels::Error> {
         // Skip rendering for invalid size (e.g., minimized window)
         if self.width == 0 || self.height == 0 {
             return Ok(());
         }
+
         self.draw_placeholder();
-        self.pixels.render()
+
+        // Tessellate egui shapes into primitives
+        let clipped_primitives = self
+            .egui_ctx
+            .tessellate(egui_output.shapes, self.egui_ctx.pixels_per_point());
+
+        let screen_descriptor = egui_wgpu::ScreenDescriptor {
+            size_in_pixels: [self.width, self.height],
+            pixels_per_point: self.egui_ctx.pixels_per_point(),
+        };
+
+        // Render with egui overlay
+        let textures_delta = egui_output.textures_delta;
+        self.pixels.render_with(|encoder, render_target, context| {
+            // Upload new/changed egui textures
+            for (id, delta) in &textures_delta.set {
+                self.egui_renderer
+                    .update_texture(&context.device, &context.queue, *id, delta);
+            }
+
+            // Update egui buffers (vertices, indices)
+            self.egui_renderer.update_buffers(
+                &context.device,
+                &context.queue,
+                encoder,
+                &clipped_primitives,
+                &screen_descriptor,
+            );
+
+            // Render egui on top of pixels framebuffer
+            {
+                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("egui"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: render_target,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load, // Keep pixels content
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    ..Default::default()
+                });
+
+                self.egui_renderer
+                    .render(&mut render_pass, &clipped_primitives, &screen_descriptor);
+            }
+
+            // Free textures no longer needed
+            for id in &textures_delta.free {
+                self.egui_renderer.free_texture(id);
+            }
+
+            Ok(())
+        })
     }
 
     /// Handles window resize by recreating the pixels surface.
@@ -171,15 +239,15 @@ pub fn run_gui() {
 
                             // Handle egui platform output (e.g., clipboard, cursor changes)
                             app.egui_state
-                                .handle_platform_output(window, egui_output.platform_output);
+                                .handle_platform_output(window, egui_output.platform_output.clone());
 
                             // Check if egui wants a repaint
                             if egui_output.viewport_output.values().any(|v| v.repaint_delay.is_zero()) {
                                 redraw_pending = true;
                             }
 
-                            // Render the frame (egui rendering will be integrated later)
-                            if let Err(e) = app.render() {
+                            // Render the frame with egui overlay
+                            if let Err(e) = app.render(egui_output) {
                                 eprintln!("Render error: {e}");
                                 elwt.exit();
                             }
