@@ -204,10 +204,12 @@ impl App {
 
     /// Handles a window event, forwarding it to egui first.
     ///
-    /// Returns true if egui consumed the event (e.g., click on UI element).
-    fn handle_window_event(&mut self, window: &Window, event: &WindowEvent) -> bool {
+    /// Returns (consumed, repaint) where:
+    /// - consumed: egui wants exclusive use of the event
+    /// - repaint: egui wants a redraw (e.g., hover state changed)
+    fn handle_window_event(&mut self, window: &Window, event: &WindowEvent) -> (bool, bool) {
         let response = self.egui_state.on_window_event(window, event);
-        response.consumed
+        (response.consumed, response.repaint)
     }
 }
 
@@ -240,7 +242,12 @@ pub fn run_gui() {
                     window_id,
                 } if window_id == window.id() => {
                     // Forward event to egui first
-                    let egui_consumed = app.handle_window_event(window, event);
+                    let (egui_consumed, egui_repaint) = app.handle_window_event(window, event);
+
+                    // Request redraw if egui wants one (e.g., hover state changed)
+                    if egui_repaint {
+                        redraw_pending = true;
+                    }
 
                     // If egui consumed the event, skip our handling
                     // (except for events we always need to handle)
@@ -284,14 +291,12 @@ pub fn run_gui() {
                         WindowEvent::Focused(focused) => {
                             app.focused = *focused;
                         }
-                        _ => {
-                            // For other events, request redraw if egui consumed them
-                            // (indicates UI state changed)
-                            if egui_consumed {
-                                redraw_pending = true;
-                            }
-                        }
+                        _ => {}
                     }
+
+                    // Suppress unused variable warning - consumed will be used
+                    // when we add pan/zoom to avoid passing clicks through UI
+                    let _ = egui_consumed;
                 }
                 Event::AboutToWait => {
                     // Only request redraw if state changed
