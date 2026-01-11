@@ -94,8 +94,15 @@ When ending a work session, complete all steps below.
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
-4. **Commit beads changes** `bd sync`
-5. **Hand off** - Provide context for next session
+4. **Push to remote:**
+   ```bash
+   git pull --rebase
+   bd sync
+   git push
+   git status  # MUST show "up to date with origin"
+   ```
+5. **Verify** - All changes committed AND pushed
+6. **Hand off** - Provide context for next session
 
 ### Best Practices
 
