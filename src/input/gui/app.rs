@@ -13,12 +13,17 @@ struct App {
     pixels: Pixels<'static>,
     width: u32,
     height: u32,
+    scale_factor: f64,
+    /// Whether the window is focused. Can be used to reduce render rate when unfocused.
+    #[allow(dead_code)]
+    focused: bool,
 }
 
 impl App {
     /// Creates a new App with a pixels surface tied to the window.
     fn new(window: &'static Window) -> Self {
         let size = window.inner_size();
+        let scale_factor = window.scale_factor();
         let surface_texture = SurfaceTexture::new(size.width, size.height, window);
         let pixels = Pixels::new(size.width, size.height, surface_texture)
             .expect("Failed to create pixels surface");
@@ -27,6 +32,8 @@ impl App {
             pixels,
             width: size.width,
             height: size.height,
+            scale_factor,
+            focused: true,
         }
     }
 
@@ -54,6 +61,10 @@ impl App {
 
     /// Renders the current frame to the window.
     fn render(&mut self) -> Result<(), pixels::Error> {
+        // Skip rendering for invalid size (e.g., minimized window)
+        if self.width == 0 || self.height == 0 {
+            return Ok(());
+        }
         self.draw_placeholder();
         self.pixels.render()
     }
@@ -112,6 +123,16 @@ pub fn run_gui() {
                         WindowEvent::Resized(size) => {
                             app.resize(size.width, size.height);
                             redraw_pending = true;
+                        }
+                        WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+                            app.scale_factor = scale_factor;
+                            // Get the new physical size after scale factor change
+                            let size = window.inner_size();
+                            app.resize(size.width, size.height);
+                            redraw_pending = true;
+                        }
+                        WindowEvent::Focused(focused) => {
+                            app.focused = focused;
                         }
                         _ => {}
                     }
