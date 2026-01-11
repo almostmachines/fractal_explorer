@@ -41,19 +41,30 @@
 ## Tips
 - To generate tree diagrams you can use the command `tree --gitignore`.
 
-## Task tracking and management
+## Task Tracking and Management
 
 This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
 
 ### Quick Reference
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --status in_progress  # Claim work
-bd close <id>         # Complete work
-bd sync               # Sync with git
+bd ready              # Show issues ready to work (no blockers)
+bd list --status=open # All open issues
+bd show <id>          # Full issue details with dependencies
+bd create --title="..." --type=task|feature|bug --priority=2
+bd update <id> --status=in_progress
+bd close <id> --reason="Completed"
+bd close <id1> <id2>  # Close multiple issues at once
+bd sync               # Commit and push changes
 ```
+
+### Workflow Pattern
+
+1. **Start**: Run `bd ready` to find actionable work
+2. **Claim**: Use `bd update <id> --status=in_progress`
+3. **Work**: Implement the issue
+4. **Complete**: Mark the issue as closed with `bd close <id>`
+5. **Sync**: Always run `bd sync` at session end
 
 ### Landing the Plane (Session Completion)
 
@@ -62,4 +73,13 @@ When ending a work session, complete all steps below.
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
-4. **Hand off** - Provide context for next session
+4. **Commit beads changes** `bd sync`
+5. **Hand off** - Provide context for next session
+
+### Best Practices
+
+- Check `bd ready` at session start to find available work
+- Update status as you work (in_progress → closed)
+- Create new issues with `bd create` when you discover tasks
+- Use descriptive titles and set appropriate priority/type
+- Always `bd sync` before ending session
