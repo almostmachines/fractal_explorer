@@ -60,19 +60,20 @@ bd sync               # Commit and push changes
 
 ### Workflow Pattern
 
-1. **Start**: Run `bd ready` to find actionable work
-2. **Claim**: Use `bd update <id> --status=in_progress`
-3. **Work**: Implement the issue
-4. **Complete**: Mark the issue as closed with `bd close <id>`
-5. **Sync**: Always run `bd sync` at session end
+1. **Start**: Run `bd ready` to find actionable work.
+2. **Claim**: Use `bd update <id> --status=in_progress`.
+3. **Work**: Implement the issue and test.
+4. **Discovery**: If you discover new work, create a new bead with discovered-from:<parent-id>.
+5. **Complete**: Mark the issue as closed with `bd close <id>`. Commit and push your work. Run `bd sync`.
+6. **Sync**: Always run `bd sync` at session end.
 
 ### Landing the Plane (Session Completion)
 
 When ending a work session, complete all steps below.
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
+1. **File issues for remaining work** - Create issues for anything that needs follow-up.
+2. **Run quality gates** (if code changed) - Tests, linters, builds.
+3. **Update issue status** - Close finished work, update in-progress items.
 4. **Push to remote:**
    ```bash
    git pull --rebase
@@ -80,13 +81,13 @@ When ending a work session, complete all steps below.
    git push
    git status  # MUST show "up to date with origin"
    ```
-5. **Verify** - All changes committed AND pushed
-6. **Hand off** - Provide context for next session
+5. **Verify** - All changes committed AND pushed.
+6. **Hand off** - Provide context for next session.
 
 ### Best Practices
 
-- Check `bd ready` at session start to find available work
-- Update status as you work (in_progress → closed)
-- Create new issues with `bd create` when you discover tasks
-- Use descriptive titles and set appropriate priority/type
-- Always `bd sync` before ending session
+- Check `bd ready` at session start to find available work.
+- Update status as you work (in_progress → closed).
+- Create new issues with `bd create` when you discover tasks.
+- Use descriptive titles and set appropriate priority/type.
+- Always `bd sync` before ending session.
