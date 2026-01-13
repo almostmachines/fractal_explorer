@@ -90,6 +90,8 @@ bd sync               # Commit and push changes
 
 ### Workflow Pattern
 
+**Important**. If you're working with beads tasks, you must follow this work flow.
+
 1. **Start**: Run `bd ready` to find actionable work.
 2. **Claim**: Use `bd update <id> --status=in_progress`.
 3. **Work**: Implement the issue and test.
