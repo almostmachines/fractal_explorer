@@ -1,6 +1,6 @@
+use crate::core::data::pixel_buffer::PixelBuffer;
 use std::io::Write;
 use std::path::Path;
-use crate::core::data::pixel_buffer::PixelBuffer;
 
 pub fn write_ppm(buffer: PixelBuffer, filepath: impl AsRef<Path>) -> std::io::Result<()> {
     let mut file = std::fs::File::create(filepath)?;
@@ -20,16 +20,20 @@ pub fn write_ppm(buffer: PixelBuffer, filepath: impl AsRef<Path>) -> std::io::Re
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::data::pixel_rect::PixelRect;
+    use crate::core::data::point::Point;
     use std::fs;
     use std::io::Read;
-    use crate::core::data::point::Point;
-    use crate::core::data::pixel_rect::PixelRect;
 
     fn create_pixel_rect(width: i32, height: i32) -> PixelRect {
         PixelRect::new(
             Point { x: 0, y: 0 },
-            Point { x: width - 1, y: height - 1 },
-        ).unwrap()
+            Point {
+                x: width - 1,
+                y: height - 1,
+            },
+        )
+        .unwrap()
     }
 
     fn create_test_buffer(width: i32, height: i32, data: Vec<u8>) -> PixelBuffer {
@@ -101,10 +105,10 @@ mod tests {
         let filepath = temp_dir.join("test_pixel_data.ppm");
 
         let pixel_data: Vec<u8> = vec![
-            255, 0, 0,    // red
-            0, 255, 0,    // green
-            0, 0, 255,    // blue
-            255, 255, 0,  // yellow
+            255, 0, 0, // red
+            0, 255, 0, // green
+            0, 0, 255, // blue
+            255, 255, 0, // yellow
         ];
         let buffer = create_test_buffer(2, 2, pixel_data.clone());
         write_ppm(buffer, &filepath).unwrap();
@@ -152,7 +156,10 @@ mod tests {
         let contents = read_file_bytes(&filepath);
         let (_, _, _, _, header_len) = parse_ppm_header(&contents);
 
-        assert_eq!(&contents[header_len..], &[0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0]);
+        assert_eq!(
+            &contents[header_len..],
+            &[0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0]
+        );
 
         fs::remove_file(&filepath).ok();
     }

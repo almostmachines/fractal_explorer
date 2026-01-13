@@ -1,5 +1,5 @@
-use std::error::Error;
 use crate::core::data::colour::Colour;
+use std::error::Error;
 
 pub trait ColourMap {
     type T;

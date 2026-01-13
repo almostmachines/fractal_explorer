@@ -18,22 +18,28 @@ mod tests {
 
     #[test]
     fn test_height_2_gives_1_band() {
-        let bands = calculate_bands_in_pixel_rect(NonZeroU32::new(10).unwrap(), PixelRect::new(Point { x:0, y:0 }, Point { x:5, y:1 }).unwrap());
+        let bands = calculate_bands_in_pixel_rect(
+            NonZeroU32::new(10).unwrap(),
+            PixelRect::new(Point { x: 0, y: 0 }, Point { x: 5, y: 1 }).unwrap(),
+        );
 
         assert_eq!(bands, 1);
     }
 
     #[test]
     fn test_height_3_gives_1_band() {
-        let bands = calculate_bands_in_pixel_rect(NonZeroU32::new(10).unwrap(), PixelRect::new(Point { x:0, y:0 }, Point { x:5, y:2 }).unwrap());
+        let bands = calculate_bands_in_pixel_rect(
+            NonZeroU32::new(10).unwrap(),
+            PixelRect::new(Point { x: 0, y: 0 }, Point { x: 5, y: 2 }).unwrap(),
+        );
 
         assert_eq!(bands, 1);
     }
 
     #[test]
     fn bands_do_not_exceed_half_pixel_rect_height() {
-        let pixel_rect = PixelRect::new(Point { x:0, y:0 }, Point { x:5, y:5 }).unwrap();
-        let pixel_rect2 = PixelRect::new(Point { x:0, y:0 }, Point { x:6, y:6 }).unwrap();
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 5, y: 5 }).unwrap();
+        let pixel_rect2 = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 6, y: 6 }).unwrap();
         let bands = calculate_bands_in_pixel_rect(NonZeroU32::new(10).unwrap(), pixel_rect);
         let bands2 = calculate_bands_in_pixel_rect(NonZeroU32::new(3).unwrap(), pixel_rect);
         let bands3 = calculate_bands_in_pixel_rect(NonZeroU32::new(10).unwrap(), pixel_rect2);
@@ -47,8 +53,8 @@ mod tests {
 
     #[test]
     fn bands_correctly_calculated() {
-        let pixel_rect = PixelRect::new(Point { x:0, y:0 }, Point { x:19, y:19 }).unwrap();
-        let pixel_rect2 = PixelRect::new(Point { x:0, y:0 }, Point { x:20, y:20 }).unwrap();
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 19, y: 19 }).unwrap();
+        let pixel_rect2 = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 20, y: 20 }).unwrap();
         let bands = calculate_bands_in_pixel_rect(NonZeroU32::new(4).unwrap(), pixel_rect);
         let bands2 = calculate_bands_in_pixel_rect(NonZeroU32::new(5).unwrap(), pixel_rect);
         let bands3 = calculate_bands_in_pixel_rect(NonZeroU32::new(4).unwrap(), pixel_rect2);

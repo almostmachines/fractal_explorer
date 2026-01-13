@@ -1,9 +1,9 @@
+use crate::core::actions::generate_pixel_buffer::ports::colour_map::ColourMap;
+use crate::core::data::colour::Colour;
+use crate::core::data::pixel_buffer::{PixelBuffer, PixelBufferData, PixelBufferError};
+use crate::core::data::pixel_rect::PixelRect;
 use std::error::Error;
 use std::fmt;
-use crate::core::data::colour::Colour;
-use crate::core::data::pixel_rect::PixelRect;
-use crate::core::data::pixel_buffer::{PixelBuffer, PixelBufferError, PixelBufferData};
-use crate::core::actions::generate_pixel_buffer::ports::colour_map::ColourMap;
 
 #[derive(Debug, PartialEq)]
 pub enum GeneratePixelBufferError<ColourMapError: Error> {
@@ -40,10 +40,8 @@ pub fn generate_pixel_buffer<CMap: ColourMap>(
     mapper: &CMap,
     pixel_rect: PixelRect,
 ) -> Result<PixelBuffer, GeneratePixelBufferError<CMap::Failure>> {
-    let colours: Result<Vec<Colour>, CMap::Failure> = input
-        .into_iter()
-        .map(|value| mapper.map(value))
-        .collect();
+    let colours: Result<Vec<Colour>, CMap::Failure> =
+        input.into_iter().map(|value| mapper.map(value)).collect();
 
     let buffer: PixelBufferData = colours
         .map_err(GeneratePixelBufferError::ColourMap)?
@@ -57,10 +55,10 @@ pub fn generate_pixel_buffer<CMap: ColourMap>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::data::colour::Colour;
-    use crate::core::data::pixel_rect::PixelRect;
-    use crate::core::data::pixel_buffer::{PixelBuffer, PixelBufferData, PixelBufferError};
     use crate::core::actions::generate_pixel_buffer::ports::colour_map::ColourMap;
+    use crate::core::data::colour::Colour;
+    use crate::core::data::pixel_buffer::{PixelBuffer, PixelBufferData, PixelBufferError};
+    use crate::core::data::pixel_rect::PixelRect;
     use crate::core::data::point::Point;
 
     #[derive(Debug, PartialEq)]
@@ -82,7 +80,11 @@ mod tests {
         type Failure = StubColourMapError;
 
         fn map(&self, value: Self::T) -> Result<Colour, Self::Failure> {
-            Ok(Colour { r: value, g: value, b: value })
+            Ok(Colour {
+                r: value,
+                g: value,
+                b: value,
+            })
         }
     }
 
@@ -103,7 +105,8 @@ mod tests {
         let input: Vec<u8> = vec![1, 2, 3, 4, 5, 6];
         let mapper = StubColourMapSuccess {};
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 2, y: 1 }).unwrap();
-        let expected_buffer: PixelBufferData = vec![1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6];
+        let expected_buffer: PixelBufferData =
+            vec![1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6];
         let expected_results = PixelBuffer::from_data(pixel_rect, expected_buffer).unwrap();
         let results = generate_pixel_buffer(input, &mapper, pixel_rect).unwrap();
 
@@ -119,7 +122,10 @@ mod tests {
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 2 }).unwrap();
         let results = generate_pixel_buffer(input, &mapper, pixel_rect);
 
-        assert!(matches!(results, Err(GeneratePixelBufferError::ColourMap(StubColourMapError {}))));
+        assert!(matches!(
+            results,
+            Err(GeneratePixelBufferError::ColourMap(StubColourMapError {}))
+        ));
     }
 
     #[test]
@@ -129,6 +135,14 @@ mod tests {
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 1, y: 1 }).unwrap();
         let results = generate_pixel_buffer(input, &mapper, pixel_rect);
 
-        assert!(matches!(results, Err(GeneratePixelBufferError::PixelBuffer(PixelBufferError::BoundsMismatch { pixel_rect_size: 12, buffer_size: 18 }))));
+        assert!(matches!(
+            results,
+            Err(GeneratePixelBufferError::PixelBuffer(
+                PixelBufferError::BoundsMismatch {
+                    pixel_rect_size: 12,
+                    buffer_size: 18
+                }
+            ))
+        ));
     }
 }

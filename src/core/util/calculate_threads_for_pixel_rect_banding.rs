@@ -18,14 +18,18 @@ mod tests {
 
     #[test]
     fn test_pixel_rect_height_2_gives_1_thread() {
-        let threads = calculate_threads_for_pixel_rect_banding(PixelRect::new( Point { x:0, y:0 }, Point { x:10, y:1 }).unwrap());
+        let threads = calculate_threads_for_pixel_rect_banding(
+            PixelRect::new(Point { x: 0, y: 0 }, Point { x: 10, y: 1 }).unwrap(),
+        );
 
         assert_eq!(threads, 1);
     }
 
     #[test]
     fn test_pixel_rect_height_3_gives_1_thread() {
-        let threads = calculate_threads_for_pixel_rect_banding(PixelRect::new( Point { x:0, y:0 }, Point { x:10, y:2 }).unwrap());
+        let threads = calculate_threads_for_pixel_rect_banding(
+            PixelRect::new(Point { x: 0, y: 0 }, Point { x: 10, y: 2 }).unwrap(),
+        );
 
         assert_eq!(threads, 1);
     }
@@ -36,7 +40,7 @@ mod tests {
             .map(|n| n.get())
             .unwrap_or(1) as u32;
 
-        let pixel_rect = PixelRect::new( Point { x:0, y:0 }, Point { x:10, y:3 }).unwrap();
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 10, y: 3 }).unwrap();
         let threads = calculate_threads_for_pixel_rect_banding(pixel_rect);
 
         if num_avail_threads > 2 {
@@ -52,7 +56,14 @@ mod tests {
             .map(|n| n.get())
             .unwrap_or(1) as i32;
 
-        let pixel_rect = PixelRect::new( Point { x:0, y:0 }, Point { x:10, y:(num_avail_threads * 3) }).unwrap();
+        let pixel_rect = PixelRect::new(
+            Point { x: 0, y: 0 },
+            Point {
+                x: 10,
+                y: (num_avail_threads * 3),
+            },
+        )
+        .unwrap();
         let threads = calculate_threads_for_pixel_rect_banding(pixel_rect);
 
         assert_eq!(threads, num_avail_threads as u32);

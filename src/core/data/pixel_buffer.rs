@@ -1,29 +1,40 @@
+use crate::core::data::colour::Colour;
+use crate::core::data::pixel_rect::PixelRect;
+use crate::core::data::point::Point;
 use std::error::Error;
 use std::fmt;
-use crate::core::data::colour::Colour;
-use crate::core::data::point::Point;
-use crate::core::data::pixel_rect::PixelRect;
 
 fn pixel_rect_to_buffer_size(pixel_rect: PixelRect) -> usize {
     (pixel_rect.width() * pixel_rect.height() * 3) as usize
 }
 
-#[derive(Debug, Clone, PartialEq )]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PixelBufferError {
     #[allow(dead_code)]
     PixelOutsideBounds { pixel: Point, pixel_rect: PixelRect },
-    BoundsMismatch { pixel_rect_size: usize, buffer_size: usize },
+    BoundsMismatch {
+        pixel_rect_size: usize,
+        buffer_size: usize,
+    },
 }
 
 impl fmt::Display for PixelBufferError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::BoundsMismatch { pixel_rect_size, buffer_size } => {
-                write!(f, "pixel rect size {} does not match buffer size {}", pixel_rect_size, buffer_size)
-            },
+            Self::BoundsMismatch {
+                pixel_rect_size,
+                buffer_size,
+            } => {
+                write!(
+                    f,
+                    "pixel rect size {} does not match buffer size {}",
+                    pixel_rect_size, buffer_size
+                )
+            }
             Self::PixelOutsideBounds { pixel, pixel_rect } => {
                 write!(
-                    f, "pixel at x:{}, y:{} outside of PixelRect bounds top:{}, left:{}, bottom:{}, right:{}",
+                    f,
+                    "pixel at x:{}, y:{} outside of PixelRect bounds top:{}, left:{}, bottom:{}, right:{}",
                     pixel.x,
                     pixel.y,
                     pixel_rect.top_left().y,
@@ -54,21 +65,24 @@ impl PixelBuffer {
 
         Self {
             pixel_rect,
-            buffer: vec![0; total_bytes]
+            buffer: vec![0; total_bytes],
         }
     }
 
-    pub fn from_data(pixel_rect: PixelRect, buffer: PixelBufferData) -> Result<Self, PixelBufferError>  {
+    pub fn from_data(
+        pixel_rect: PixelRect,
+        buffer: PixelBufferData,
+    ) -> Result<Self, PixelBufferError> {
         let buffer_size = pixel_rect_to_buffer_size(pixel_rect);
 
         if buffer_size != buffer.len() {
-            return Err(PixelBufferError::BoundsMismatch { pixel_rect_size: buffer_size, buffer_size: buffer.len() })
+            return Err(PixelBufferError::BoundsMismatch {
+                pixel_rect_size: buffer_size,
+                buffer_size: buffer.len(),
+            });
         }
 
-        Ok(Self {
-            pixel_rect,
-            buffer
-        })
+        Ok(Self { pixel_rect, buffer })
     }
 
     #[must_use]
@@ -92,7 +106,10 @@ impl PixelBuffer {
         let buffer_size = pixel_rect_to_buffer_size(self.pixel_rect);
 
         if buffer_size != buffer.len() {
-            return Err(PixelBufferError::BoundsMismatch { pixel_rect_size: buffer_size, buffer_size: buffer.len() })
+            return Err(PixelBufferError::BoundsMismatch {
+                pixel_rect_size: buffer_size,
+                buffer_size: buffer.len(),
+            });
         }
 
         self.buffer = buffer;
@@ -102,7 +119,10 @@ impl PixelBuffer {
     #[allow(dead_code)]
     pub fn set_pixel(&mut self, pixel: Point, colour: Colour) -> Result<(), PixelBufferError> {
         if !self.pixel_rect.contains_point(pixel) {
-            return Err(PixelBufferError::PixelOutsideBounds { pixel, pixel_rect: self.pixel_rect })
+            return Err(PixelBufferError::PixelOutsideBounds {
+                pixel,
+                pixel_rect: self.pixel_rect,
+            });
         }
 
         let relative_x = (pixel.x - self.pixel_rect.top_left().x) as u32;
@@ -124,15 +144,23 @@ mod tests {
     fn create_pixel_rect(width: i32, height: i32) -> PixelRect {
         PixelRect::new(
             Point { x: 0, y: 0 },
-            Point { x: width - 1, y: height - 1 },
-        ).unwrap()
+            Point {
+                x: width - 1,
+                y: height - 1,
+            },
+        )
+        .unwrap()
     }
 
     fn create_offset_pixel_rect(x: i32, y: i32, width: i32, height: i32) -> PixelRect {
         PixelRect::new(
             Point { x, y },
-            Point { x: x + width - 1, y: y + height - 1 },
-        ).unwrap()
+            Point {
+                x: x + width - 1,
+                y: y + height - 1,
+            },
+        )
+        .unwrap()
     }
 
     #[test]
@@ -157,10 +185,10 @@ mod tests {
     fn test_from_data_valid() {
         let pixel_rect = create_pixel_rect(2, 2);
         let data: Vec<u8> = vec![
-            255, 0, 0,    // pixel (0,0) - red
-            0, 255, 0,    // pixel (1,0) - green
-            0, 0, 255,    // pixel (0,1) - blue
-            255, 255, 0,  // pixel (1,1) - yellow
+            255, 0, 0, // pixel (0,0) - red
+            0, 255, 0, // pixel (1,0) - green
+            0, 0, 255, // pixel (0,1) - blue
+            255, 255, 0, // pixel (1,1) - yellow
         ];
 
         let buffer = PixelBuffer::from_data(pixel_rect, data.clone());
@@ -336,7 +364,11 @@ mod tests {
     fn test_set_pixel_with_offset_rect() {
         let pixel_rect = create_offset_pixel_rect(10, 20, 3, 3);
         let mut buffer = PixelBuffer::new(pixel_rect);
-        let white = Colour { r: 255, g: 255, b: 255 };
+        let white = Colour {
+            r: 255,
+            g: 255,
+            b: 255,
+        };
 
         let result = buffer.set_pixel(Point { x: 11, y: 21 }, white);
 
@@ -403,16 +435,31 @@ mod tests {
         let pixel_rect = create_pixel_rect(2, 2);
         let mut buffer = PixelBuffer::new(pixel_rect);
 
-        buffer.set_pixel(Point { x: 0, y: 0 }, Colour { r: 255, g: 0, b: 0 }).unwrap();
-        buffer.set_pixel(Point { x: 1, y: 0 }, Colour { r: 0, g: 255, b: 0 }).unwrap();
-        buffer.set_pixel(Point { x: 0, y: 1 }, Colour { r: 0, g: 0, b: 255 }).unwrap();
-        buffer.set_pixel(Point { x: 1, y: 1 }, Colour { r: 255, g: 255, b: 0 }).unwrap();
+        buffer
+            .set_pixel(Point { x: 0, y: 0 }, Colour { r: 255, g: 0, b: 0 })
+            .unwrap();
+        buffer
+            .set_pixel(Point { x: 1, y: 0 }, Colour { r: 0, g: 255, b: 0 })
+            .unwrap();
+        buffer
+            .set_pixel(Point { x: 0, y: 1 }, Colour { r: 0, g: 0, b: 255 })
+            .unwrap();
+        buffer
+            .set_pixel(
+                Point { x: 1, y: 1 },
+                Colour {
+                    r: 255,
+                    g: 255,
+                    b: 0,
+                },
+            )
+            .unwrap();
 
         let expected: Vec<u8> = vec![
-            255, 0, 0,    // (0,0) red
-            0, 255, 0,    // (1,0) green
-            0, 0, 255,    // (0,1) blue
-            255, 255, 0,  // (1,1) yellow
+            255, 0, 0, // (0,0) red
+            0, 255, 0, // (1,0) green
+            0, 0, 255, // (0,1) blue
+            255, 255, 0, // (1,1) yellow
         ];
         assert_eq!(buffer.buffer(), &expected);
     }

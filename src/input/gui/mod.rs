@@ -4,5 +4,9 @@
 //! pixels for framebuffer rendering, and egui for UI controls.
 
 mod app;
+mod events;
+mod ui_state;
 
 pub use app::run_gui;
+pub use events::GuiEvent;
+pub use ui_state::UiState;

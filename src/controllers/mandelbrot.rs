@@ -1,12 +1,12 @@
 use std::time::Instant;
 
 use crate::core::actions::generate_fractal::generate_fractal_parallel_rayon::generate_fractal_parallel_rayon;
-use crate::core::data::complex::Complex;
-use crate::core::data::point::Point;
-use crate::core::data::pixel_rect::PixelRect;
-use crate::core::data::complex_rect::ComplexRect;
-use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
 use crate::core::actions::generate_pixel_buffer::generate_pixel_buffer::generate_pixel_buffer;
+use crate::core::data::complex::Complex;
+use crate::core::data::complex_rect::ComplexRect;
+use crate::core::data::pixel_rect::PixelRect;
+use crate::core::data::point::Point;
+use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
 use crate::core::fractals::mandelbrot::colour_maps::blue_white_gradient::MandelbrotBlueWhiteGradient;
 use crate::storage::write_ppm::write_ppm;
 
@@ -18,13 +18,22 @@ pub fn mandelbrot_controller() -> Result<(), Box<dyn std::error::Error>> {
 
     let pixel_rect = PixelRect::new(
         Point { x: 0, y: 0 },
-        Point { x: width - 1, y: height - 1 },
+        Point {
+            x: width - 1,
+            y: height - 1,
+        },
     )?;
 
     // Classic Mandelbrot view
     let complex_rect = ComplexRect::new(
-        Complex { real: -2.5, imag: -1.0  },
-        Complex { real: 1.0, imag: 1.0  },
+        Complex {
+            real: -2.5,
+            imag: -1.0,
+        },
+        Complex {
+            real: 1.0,
+            imag: 1.0,
+        },
     )?;
 
     println!("Rendering Mandelbrot set...");

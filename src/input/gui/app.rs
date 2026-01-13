@@ -1,13 +1,21 @@
 //! Main GUI application loop.
 
+use std::time::Duration;
+
 use egui::Context;
-use egui_winit::State as EguiWinitState;
 use egui_wgpu::Renderer as EguiRenderer;
-use pixels::{wgpu, Pixels, SurfaceTexture};
+use egui_winit::State as EguiWinitState;
+use pixels::{Pixels, SurfaceTexture, wgpu};
+
+use super::{GuiEvent, UiState};
+use crate::adapters::present::PixelsPresenter;
+use crate::controllers::interactive::{InteractiveController, RenderEvent};
+use crate::core::data::pixel_rect::PixelRect;
+use crate::core::data::point::Point;
 use winit::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
-    event_loop::EventLoop,
+    event_loop::{EventLoop, EventLoopBuilder},
     window::{Window, WindowBuilder},
 };
 
@@ -17,6 +25,12 @@ struct App {
     width: u32,
     height: u32,
     scale_factor: f64,
+    presenter: PixelsPresenter,
+    controller: InteractiveController,
+    ui_state: UiState,
+    last_render_duration: Option<Duration>,
+    last_error_message: Option<String>,
+    has_frame: bool,
     /// Whether the window is focused. Can be used to reduce render rate when unfocused.
     #[allow(dead_code)]
     focused: bool,
@@ -26,13 +40,16 @@ struct App {
     egui_state: EguiWinitState,
     /// egui-wgpu renderer for drawing UI on top of pixels.
     egui_renderer: EguiRenderer,
-    /// Test slider value to demonstrate UI interactivity.
-    test_slider_value: f32,
 }
 
 impl App {
     /// Creates a new App with a pixels surface tied to the window.
-    fn new(window: &'static Window, event_loop: &EventLoop<()>) -> Self {
+    fn new(
+        window: &'static Window,
+        event_loop: &EventLoop<GuiEvent>,
+        presenter: PixelsPresenter,
+        controller: InteractiveController,
+    ) -> Self {
         let size = window.inner_size();
         let scale_factor = window.scale_factor();
         let surface_texture = SurfaceTexture::new(size.width, size.height, window);
@@ -62,23 +79,24 @@ impl App {
             width: size.width,
             height: size.height,
             scale_factor,
+            presenter,
+            controller,
+            ui_state: UiState::default(),
+            last_render_duration: None,
+            last_error_message: None,
+            has_frame: false,
             focused: true,
             egui_ctx,
             egui_state,
             egui_renderer,
-            test_slider_value: 0.5,
         }
     }
 
     /// Draws a checkerboard pattern to prove the rendering pipeline works.
-    /// The slider value controls the red channel tint.
     fn draw_placeholder(&mut self) {
         let frame = self.pixels.frame_mut();
         let width = self.width as usize;
         let tile_size = 32;
-
-        // Use slider to control red tint (0.0 = no red, 1.0 = full red)
-        let red_tint = (self.test_slider_value * 255.0) as u8;
 
         for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
             let x = i % width;
@@ -89,10 +107,10 @@ impl App {
             let is_dark = (tile_x + tile_y) % 2 == 0;
 
             let base = if is_dark { 60 } else { 200 };
-            pixel[0] = base.max(red_tint); // R (tinted by slider)
-            pixel[1] = base; // G
-            pixel[2] = base; // B
-            pixel[3] = 255; // A (opaque)
+            pixel[0] = base;
+            pixel[1] = base;
+            pixel[2] = base;
+            pixel[3] = 255;
         }
     }
 
@@ -103,7 +121,37 @@ impl App {
             return Ok(());
         }
 
-        self.draw_placeholder();
+        let mut drew_frame = false;
+        let latest_generation = self.ui_state.latest_submitted_generation;
+        if let Some(event) = self.presenter.take_latest_event() {
+            match event {
+                RenderEvent::Frame(frame) => {
+                    let pixel_rect = frame.pixel_rect;
+                    if frame.generation == latest_generation
+                        && pixel_rect.width() == self.width
+                        && pixel_rect.height() == self.height
+                    {
+                        PixelsPresenter::copy_pixel_buffer_into_pixels_frame(
+                            &frame,
+                            &mut self.pixels,
+                        );
+                        self.has_frame = true;
+                        self.last_render_duration = Some(frame.render_duration);
+                        self.last_error_message = None;
+                        drew_frame = true;
+                    }
+                }
+                RenderEvent::Error(error) => {
+                    if error.generation == latest_generation {
+                        self.last_error_message = Some(error.message);
+                    }
+                }
+            }
+        }
+
+        if !drew_frame && !self.has_frame {
+            self.draw_placeholder();
+        }
 
         // Tessellate egui shapes into primitives
         let clipped_primitives = self
@@ -152,8 +200,11 @@ impl App {
                     ..Default::default()
                 });
 
-                self.egui_renderer
-                    .render(&mut render_pass, &clipped_primitives, &screen_descriptor);
+                self.egui_renderer.render(
+                    &mut render_pass,
+                    &clipped_primitives,
+                    &screen_descriptor,
+                );
             }
 
             // Free textures no longer needed
@@ -167,15 +218,53 @@ impl App {
 
     /// Handles window resize by recreating the pixels surface.
     fn resize(&mut self, width: u32, height: u32) {
-        if width > 0 && height > 0 {
-            self.width = width;
-            self.height = height;
-            self.pixels
-                .resize_surface(width, height)
-                .expect("Failed to resize surface");
+        self.width = width;
+        self.height = height;
+
+        if width == 0 || height == 0 {
+            return;
+        }
+
+        self.pixels
+            .resize_surface(width, height)
+            .expect("Failed to resize surface");
+
+        if width >= 2 && height >= 2 {
             self.pixels
                 .resize_buffer(width, height)
                 .expect("Failed to resize buffer");
+            self.has_frame = false;
+        }
+    }
+
+    fn submit_render_request_if_needed(&mut self) {
+        if self.width < 2 || self.height < 2 {
+            return;
+        }
+
+        let width = i32::try_from(self.width).ok();
+        let height = i32::try_from(self.height).ok();
+        let (width, height) = match (width, height) {
+            (Some(width), Some(height)) => (width, height),
+            _ => return,
+        };
+
+        let pixel_rect = match PixelRect::new(
+            Point { x: 0, y: 0 },
+            Point {
+                x: width - 1,
+                y: height - 1,
+            },
+        ) {
+            Ok(rect) => rect,
+            Err(_) => return,
+        };
+
+        let request = self.ui_state.build_render_request(pixel_rect);
+        if self.ui_state.should_submit(&request) {
+            let generation = self.controller.submit_request(request.clone());
+            self.ui_state.record_submission(request, generation);
+            self.last_error_message = None;
         }
     }
 
@@ -189,18 +278,49 @@ impl App {
         self.egui_ctx.run(raw_input, |ctx| {
             egui::Window::new("Debug Panel")
                 .default_pos([10.0, 10.0])
-                .default_size([200.0, 100.0])
+                .default_size([260.0, 220.0])
                 .show(ctx, |ui| {
                     ui.heading("Fractal Explorer");
                     ui.separator();
 
-                    ui.label("Test slider:");
-                    ui.add(
-                        egui::Slider::new(&mut self.test_slider_value, 0.0..=1.0).text("value"),
-                    );
+                    ui.horizontal(|ui| {
+                        ui.label("Max iterations:");
+                        ui.add(egui::Slider::new(
+                            &mut self.ui_state.max_iterations,
+                            1..=1000,
+                        ));
+                    });
+
+                    ui.separator();
+                    ui.label("View region:");
+                    let top_left = self.ui_state.region.top_left();
+                    let bottom_right = self.ui_state.region.bottom_right();
+                    ui.label(format!(
+                        "Real: [{:.4}, {:.4}]",
+                        top_left.real, bottom_right.real
+                    ));
+                    ui.label(format!(
+                        "Imag: [{:.4}, {:.4}]",
+                        top_left.imag, bottom_right.imag
+                    ));
+
+                    if ui.button("Reset view").clicked() {
+                        self.ui_state.reset_view();
+                    }
 
                     ui.separator();
                     ui.label(format!("Window size: {}x{}", self.width, self.height));
+                    ui.label(format!(
+                        "Latest generation: {}",
+                        self.ui_state.latest_submitted_generation
+                    ));
+                    if let Some(render_duration) = self.last_render_duration {
+                        ui.label(format!("Last render: {} ms", render_duration.as_millis()));
+                    }
+                    if let Some(message) = &self.last_error_message {
+                        ui.separator();
+                        ui.colored_label(egui::Color32::LIGHT_RED, message);
+                    }
                 });
         })
     }
@@ -220,7 +340,13 @@ impl App {
 ///
 /// This function does not return until the window is closed.
 pub fn run_gui() {
-    let event_loop = EventLoop::new().expect("Failed to create event loop");
+    let event_loop = EventLoopBuilder::<GuiEvent>::with_user_event()
+        .build()
+        .expect("Failed to create event loop");
+    let event_loop_proxy = event_loop.create_proxy();
+    let presenter = PixelsPresenter::new(event_loop_proxy);
+    let frame_sink = presenter.frame_sink();
+    let controller = InteractiveController::new(frame_sink);
 
     // Leak the window to get a 'static reference for pixels
     let window: &'static Window = Box::leak(Box::new(
@@ -232,7 +358,7 @@ pub fn run_gui() {
             .expect("Failed to create window"),
     ));
 
-    let mut app = App::new(window, &event_loop);
+    let mut app = App::new(window, &event_loop, presenter, controller);
 
     // Track whether we need to redraw
     let mut redraw_pending = true;
@@ -240,6 +366,10 @@ pub fn run_gui() {
     event_loop
         .run(|event, elwt| {
             match event {
+                Event::UserEvent(GuiEvent::Wake) => {
+                    redraw_pending = true;
+                    window.request_redraw();
+                }
                 Event::WindowEvent {
                     ref event,
                     window_id,
@@ -256,6 +386,7 @@ pub fn run_gui() {
                     // (except for events we always need to handle)
                     match event {
                         WindowEvent::CloseRequested => {
+                            app.controller.shutdown();
                             elwt.exit();
                         }
                         WindowEvent::RedrawRequested => {
@@ -263,13 +394,20 @@ pub fn run_gui() {
 
                             // Run egui frame
                             let egui_output = app.update_ui(window);
+                            app.submit_render_request_if_needed();
 
                             // Handle egui platform output (e.g., clipboard, cursor changes)
-                            app.egui_state
-                                .handle_platform_output(window, egui_output.platform_output.clone());
+                            app.egui_state.handle_platform_output(
+                                window,
+                                egui_output.platform_output.clone(),
+                            );
 
                             // Check if egui wants a repaint
-                            if egui_output.viewport_output.values().any(|v| v.repaint_delay.is_zero()) {
+                            if egui_output
+                                .viewport_output
+                                .values()
+                                .any(|v| v.repaint_delay.is_zero())
+                            {
                                 redraw_pending = true;
                             }
 

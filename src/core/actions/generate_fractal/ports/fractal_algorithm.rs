@@ -1,5 +1,5 @@
-use std::error::Error;
 use crate::core::data::point::Point;
+use std::error::Error;
 
 pub trait FractalAlgorithm {
     type Success;

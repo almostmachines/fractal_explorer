@@ -1,8 +1,8 @@
+use crate::core::data::complex::Complex;
 use std::error::Error;
 use std::fmt;
-use crate::core::data::complex::Complex;
 
-#[derive(Debug, Copy, Clone, PartialEq )]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ComplexRectError {
     InvalidSize { width: f64, height: f64 },
 }
@@ -11,7 +11,11 @@ impl fmt::Display for ComplexRectError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidSize { width, height } => {
-                write!(f, "complex rect size must be positive: {}x{}", width, height)
+                write!(
+                    f,
+                    "complex rect size must be positive: {}x{}",
+                    width, height
+                )
             }
         }
     }
@@ -65,9 +69,9 @@ impl ComplexRect {
     #[must_use]
     pub fn contains_point(&self, point: Complex) -> bool {
         self.top_left.real <= point.real
-        && self.top_left.imag <= point.imag
-        && self.bottom_right.real >= point.real
-        && self.bottom_right.imag >= point.imag
+            && self.top_left.imag <= point.imag
+            && self.bottom_right.real >= point.real
+            && self.bottom_right.imag >= point.imag
     }
 
     #[allow(dead_code)]
@@ -83,8 +87,14 @@ mod tests {
 
     #[test]
     fn test_complex_rect_new_valid() {
-        let top_left = Complex { real: -2.0, imag: -1.0 };
-        let bottom_right = Complex { real: 1.0, imag: 1.0 };
+        let top_left = Complex {
+            real: -2.0,
+            imag: -1.0,
+        };
+        let bottom_right = Complex {
+            real: 1.0,
+            imag: 1.0,
+        };
 
         let rect = ComplexRect::new(top_left, bottom_right);
         let value = rect.unwrap();
@@ -97,49 +107,128 @@ mod tests {
     #[test]
     fn test_complex_rect_dimensions_must_be_positive() {
         let rect_zero_width = ComplexRect::new(
-            Complex { real: 0.0, imag: 0.0 },
-            Complex { real: 0.0, imag: 100.0 },
+            Complex {
+                real: 0.0,
+                imag: 0.0,
+            },
+            Complex {
+                real: 0.0,
+                imag: 100.0,
+            },
         );
 
         let rect_negative_width = ComplexRect::new(
-            Complex { real: 0.0, imag: 0.0 },
-            Complex { real: -100.0, imag: 10.0 },
+            Complex {
+                real: 0.0,
+                imag: 0.0,
+            },
+            Complex {
+                real: -100.0,
+                imag: 10.0,
+            },
         );
 
         let rect_zero_height = ComplexRect::new(
-            Complex { real: 0.0, imag: 0.0 },
-            Complex { real: 100.0, imag: 0.0 },
+            Complex {
+                real: 0.0,
+                imag: 0.0,
+            },
+            Complex {
+                real: 100.0,
+                imag: 0.0,
+            },
         );
 
         let rect_negative_height = ComplexRect::new(
-            Complex { real: 0.0, imag: 0.0 },
-            Complex { real: 100.0, imag: -10.0 },
+            Complex {
+                real: 0.0,
+                imag: 0.0,
+            },
+            Complex {
+                real: 100.0,
+                imag: -10.0,
+            },
         );
 
         let rect_zero_width_and_height = ComplexRect::new(
-            Complex { real: 2.0, imag: 2.0 },
-            Complex { real: 2.0, imag: 2.0 },
+            Complex {
+                real: 2.0,
+                imag: 2.0,
+            },
+            Complex {
+                real: 2.0,
+                imag: 2.0,
+            },
         );
 
         let rect_negative_width_and_height = ComplexRect::new(
-            Complex { real: 2.0, imag: 2.0 },
-            Complex { real: -2.0, imag: -2.0 },
+            Complex {
+                real: 2.0,
+                imag: 2.0,
+            },
+            Complex {
+                real: -2.0,
+                imag: -2.0,
+            },
         );
 
-        assert_eq!(rect_zero_width, Err(ComplexRectError::InvalidSize { width: 0.0, height: 100.0 }));
-        assert_eq!(rect_negative_width, Err(ComplexRectError::InvalidSize { width: -100.0, height: 10.0 }));
-        assert_eq!(rect_zero_height, Err(ComplexRectError::InvalidSize { width: 100.0, height: 0.0 }));
-        assert_eq!(rect_negative_height, Err(ComplexRectError::InvalidSize { width: 100.0, height: -10.0 }));
-        assert_eq!(rect_zero_width_and_height, Err(ComplexRectError::InvalidSize { width: 0.0, height: 0.0 }));
-        assert_eq!(rect_negative_width_and_height, Err(ComplexRectError::InvalidSize { width: -4.0, height: -4.0 }));
+        assert_eq!(
+            rect_zero_width,
+            Err(ComplexRectError::InvalidSize {
+                width: 0.0,
+                height: 100.0
+            })
+        );
+        assert_eq!(
+            rect_negative_width,
+            Err(ComplexRectError::InvalidSize {
+                width: -100.0,
+                height: 10.0
+            })
+        );
+        assert_eq!(
+            rect_zero_height,
+            Err(ComplexRectError::InvalidSize {
+                width: 100.0,
+                height: 0.0
+            })
+        );
+        assert_eq!(
+            rect_negative_height,
+            Err(ComplexRectError::InvalidSize {
+                width: 100.0,
+                height: -10.0
+            })
+        );
+        assert_eq!(
+            rect_zero_width_and_height,
+            Err(ComplexRectError::InvalidSize {
+                width: 0.0,
+                height: 0.0
+            })
+        );
+        assert_eq!(
+            rect_negative_width_and_height,
+            Err(ComplexRectError::InvalidSize {
+                width: -4.0,
+                height: -4.0
+            })
+        );
     }
 
     #[test]
     fn test_complex_rect_dimensions() {
         let rect = ComplexRect::new(
-            Complex { real: -2.5, imag: -1.0 },
-            Complex { real: 1.0, imag: 1.0 },
-        ).unwrap();
+            Complex {
+                real: -2.5,
+                imag: -1.0,
+            },
+            Complex {
+                real: 1.0,
+                imag: 1.0,
+            },
+        )
+        .unwrap();
 
         assert_eq!(rect.width(), 3.5);
         assert_eq!(rect.height(), 2.0);
@@ -148,16 +237,44 @@ mod tests {
     #[test]
     fn test_complex_rect_contains_point() {
         let rect = ComplexRect::new(
-            Complex { real: -10.0, imag: -5.0 },
-            Complex { real: 100.0, imag: 200.0 },
-        ).unwrap();
+            Complex {
+                real: -10.0,
+                imag: -5.0,
+            },
+            Complex {
+                real: 100.0,
+                imag: 200.0,
+            },
+        )
+        .unwrap();
 
-        assert!(rect.contains_point(Complex { real: 50.0, imag: 50.0 }));
-        assert!(rect.contains_point(Complex { real: -10.0, imag: 0.0 }));
-        assert!(rect.contains_point(Complex { real: 100.0, imag: 200.0 }));
-        assert!(!rect.contains_point(Complex { real: 101.0, imag: 50.0 }));
-        assert!(!rect.contains_point(Complex { real: -11.0, imag: 50.0 }));
-        assert!(!rect.contains_point(Complex { real: 50.0, imag: -6.0 }));
-        assert!(!rect.contains_point(Complex { real: 50.0, imag: 201.0 }));
+        assert!(rect.contains_point(Complex {
+            real: 50.0,
+            imag: 50.0
+        }));
+        assert!(rect.contains_point(Complex {
+            real: -10.0,
+            imag: 0.0
+        }));
+        assert!(rect.contains_point(Complex {
+            real: 100.0,
+            imag: 200.0
+        }));
+        assert!(!rect.contains_point(Complex {
+            real: 101.0,
+            imag: 50.0
+        }));
+        assert!(!rect.contains_point(Complex {
+            real: -11.0,
+            imag: 50.0
+        }));
+        assert!(!rect.contains_point(Complex {
+            real: 50.0,
+            imag: -6.0
+        }));
+        assert!(!rect.contains_point(Complex {
+            real: 50.0,
+            imag: 201.0
+        }));
     }
 }

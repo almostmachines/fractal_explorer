@@ -40,7 +40,9 @@ where
             };
 
             thread::spawn(move || {
-                let mut chunk_results = Vec::with_capacity((end_row - start_row) as usize * (right_x - left_x) as usize);
+                let mut chunk_results = Vec::with_capacity(
+                    (end_row - start_row) as usize * (right_x - left_x) as usize,
+                );
 
                 for row in start_row..end_row {
                     let y = top_y + row as i32;
@@ -73,8 +75,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::error::Error;
     use crate::core::actions::generate_fractal::generate_fractal_serial::generate_fractal_serial;
+    use std::error::Error;
 
     #[derive(Debug, PartialEq)]
     struct StubError {}

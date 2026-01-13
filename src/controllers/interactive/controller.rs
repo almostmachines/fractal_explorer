@@ -10,6 +10,7 @@ use std::time::Instant;
 
 use crate::core::actions::generate_fractal::generate_fractal_parallel_rayon::generate_fractal_parallel_rayon;
 use crate::core::actions::generate_pixel_buffer::generate_pixel_buffer::generate_pixel_buffer;
+use crate::core::data::pixel_buffer::PixelBuffer;
 use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
 use crate::core::fractals::mandelbrot::colour_maps::blue_white_gradient::MandelbrotBlueWhiteGradient;
 
@@ -185,13 +186,10 @@ impl InteractiveController {
                 }
             };
 
-            // Notify that rendering has started
-            shared.frame_sink.send_event(RenderEvent::RenderStarted);
-
             // Perform the render (outside the lock)
             let start = Instant::now();
             let result = Self::render_request(&request);
-            let render_time_ms = start.elapsed().as_millis() as u64;
+            let render_duration = start.elapsed();
 
             // Check if this job has been superseded before emitting
             let current_gen = shared.generation.load(Ordering::Acquire);
@@ -202,19 +200,21 @@ impl InteractiveController {
 
             // Emit the result
             match result {
-                Ok((pixel_data, width, height)) => {
-                    shared.frame_sink.send_event(RenderEvent::FrameReady(FrameMessage {
-                        pixel_data,
-                        width,
-                        height,
-                        render_time_ms,
+                Ok(pixel_buffer) => {
+                    shared.frame_sink.submit(RenderEvent::Frame(FrameMessage {
+                        generation: job_generation,
+                        pixel_rect: request.pixel_rect,
+                        pixel_buffer,
+                        render_duration,
                     }));
                 }
                 Err(message) => {
-                    shared.frame_sink.send_event(RenderEvent::RenderError(RenderErrorMessage {
-                        message,
-                        recoverable: true,
-                    }));
+                    shared
+                        .frame_sink
+                        .submit(RenderEvent::Error(RenderErrorMessage {
+                            generation: job_generation,
+                            message,
+                        }));
                 }
             }
         }
@@ -222,8 +222,8 @@ impl InteractiveController {
 
     /// Performs the actual rendering based on the request parameters.
     ///
-    /// Returns the RGB pixel data and dimensions on success.
-    fn render_request(request: &RenderRequest) -> Result<(Vec<u8>, u32, u32), String> {
+    /// Returns the RGB pixel buffer on success.
+    fn render_request(request: &RenderRequest) -> Result<PixelBuffer, String> {
         // Validate request
         let width = request.pixel_rect.width();
         let height = request.pixel_rect.height();
@@ -234,17 +234,21 @@ impl InteractiveController {
 
         // Dispatch based on fractal type
         match (&request.fractal, &request.params) {
-            (FractalKind::Mandelbrot, FractalParams::Mandelbrot { region, max_iterations }) => {
+            (
+                FractalKind::Mandelbrot,
+                FractalParams::Mandelbrot {
+                    region,
+                    max_iterations,
+                },
+            ) => {
                 if *max_iterations == 0 {
                     return Err("max_iterations must be greater than 0".to_string());
                 }
 
                 // Create the algorithm
-                let algorithm = MandelbrotAlgorithm::new(
-                    request.pixel_rect,
-                    *region,
-                    *max_iterations,
-                ).map_err(|e| e.to_string())?;
+                let algorithm =
+                    MandelbrotAlgorithm::new(request.pixel_rect, *region, *max_iterations)
+                        .map_err(|e| e.to_string())?;
 
                 // Generate iteration counts
                 let fractal = generate_fractal_parallel_rayon(request.pixel_rect, &algorithm)
@@ -259,9 +263,7 @@ impl InteractiveController {
                     }
                 };
 
-                // Extract the raw buffer data
-                let data = pixel_buffer.buffer().clone();
-                Ok((data, width, height))
+                Ok(pixel_buffer)
             }
         }
     }
@@ -270,5 +272,110 @@ impl InteractiveController {
 impl Drop for InteractiveController {
     fn drop(&mut self) {
         self.shutdown();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    use crate::core::data::complex::Complex;
+    use crate::core::data::complex_rect::ComplexRect;
+    use crate::core::data::pixel_rect::PixelRect;
+    use crate::core::data::point::Point;
+
+    #[derive(Default)]
+    struct MockFrameSink {
+        events: Mutex<Vec<RenderEvent>>,
+    }
+
+    impl MockFrameSink {
+        fn take_events(&self) -> Vec<RenderEvent> {
+            let mut guard = self.events.lock().unwrap();
+            std::mem::take(&mut *guard)
+        }
+    }
+
+    impl FrameSink for MockFrameSink {
+        fn submit(&self, event: RenderEvent) {
+            self.events.lock().unwrap().push(event);
+        }
+    }
+
+    fn wait_for_events(sink: &MockFrameSink, timeout: Duration) -> Vec<RenderEvent> {
+        let start = Instant::now();
+        loop {
+            let events = sink.take_events();
+            if !events.is_empty() {
+                return events;
+            }
+            if start.elapsed() >= timeout {
+                return events;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    fn create_test_request(pixel_rect: PixelRect) -> RenderRequest {
+        let region = ComplexRect::new(
+            Complex {
+                real: -2.5,
+                imag: -1.0,
+            },
+            Complex {
+                real: 1.0,
+                imag: 1.0,
+            },
+        )
+        .expect("test region is valid");
+
+        RenderRequest {
+            pixel_rect,
+            fractal: FractalKind::Mandelbrot,
+            params: FractalParams::Mandelbrot {
+                region,
+                max_iterations: 10,
+            },
+            colour_scheme: ColourSchemeKind::BlueWhiteGradient,
+        }
+    }
+
+    #[test]
+    fn test_submit_request_emits_frame() {
+        let frame_sink = Arc::new(MockFrameSink::default());
+        let mut controller =
+            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn FrameSink>);
+
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
+        let request = create_test_request(pixel_rect);
+
+        let generation = controller.submit_request(request.clone());
+        let events = wait_for_events(frame_sink.as_ref(), Duration::from_secs(2));
+        assert!(!events.is_empty(), "expected a render event");
+
+        let mut saw_frame = false;
+        for event in events {
+            match event {
+                RenderEvent::Frame(frame) => {
+                    assert_eq!(frame.generation, generation);
+                    assert!(generation > 0, "generation should be non-zero");
+                    assert_eq!(frame.pixel_rect, request.pixel_rect);
+                    assert_eq!(
+                        frame.pixel_buffer.buffer().len(),
+                        (request.pixel_rect.width() * request.pixel_rect.height() * 3) as usize
+                    );
+                    saw_frame = true;
+                }
+                RenderEvent::Error(error) => {
+                    panic!("unexpected render error: {}", error.message);
+                }
+            }
+        }
+
+        assert!(saw_frame, "expected a frame event");
+        controller.shutdown();
     }
 }

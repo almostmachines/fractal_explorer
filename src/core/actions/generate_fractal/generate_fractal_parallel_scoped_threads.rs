@@ -38,7 +38,12 @@ impl<AlgFailure: Error> From<PixelRectError> for GenerateFractalParallelError<Al
     }
 }
 
-fn generate_pixel_rect_band(band_num: u32, band_height: u32, total_bands: u32, bounding_rect: PixelRect) -> Result<PixelRect, PixelRectError> {
+fn generate_pixel_rect_band(
+    band_num: u32,
+    band_height: u32,
+    total_bands: u32,
+    bounding_rect: PixelRect,
+) -> Result<PixelRect, PixelRectError> {
     let band_top = (band_num * band_height) as i32;
 
     let band_bottom = if band_num == total_bands - 1 {
@@ -76,8 +81,9 @@ where
     let num_threads = calculate_threads_for_pixel_rect_banding(pixel_rect);
     let band_height = pixel_rect.height() / num_threads;
 
-    let results = thread::scope(|scope| -> Result<Vec<Alg::Success>, GenerateFractalParallelError<Alg::Failure>> {
-        let scoped_results = (0..num_threads)
+    let results = thread::scope(
+        |scope| -> Result<Vec<Alg::Success>, GenerateFractalParallelError<Alg::Failure>> {
+            let scoped_results = (0..num_threads)
             .map(|thread_idx| {
                 scope.spawn(move || {
                     generate_fractal_serial(
@@ -98,8 +104,9 @@ where
             .flatten()
             .collect::<Vec<Alg::Success>>();
 
-        Ok(scoped_results)
-    })?;
+            Ok(scoped_results)
+        },
+    )?;
 
     Ok(results)
 }
@@ -107,8 +114,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::error::Error;
     use crate::core::actions::generate_fractal::generate_fractal_serial::generate_fractal_serial;
+    use std::error::Error;
 
     #[derive(Debug, PartialEq)]
     struct StubError {}
@@ -139,7 +146,8 @@ mod tests {
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 10, y: 8 }).unwrap();
 
         let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
-        let parallel_results = generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
+        let parallel_results =
+            generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
 
         assert_eq!(parallel_results, sequential_results);
     }
@@ -150,7 +158,8 @@ mod tests {
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 5, y: 5 }).unwrap();
 
         let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
-        let parallel_results = generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
+        let parallel_results =
+            generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
 
         assert_eq!(parallel_results, sequential_results);
     }
@@ -162,7 +171,8 @@ mod tests {
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 7 }).unwrap();
 
         let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
-        let parallel_results = generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
+        let parallel_results =
+            generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
 
         assert_eq!(parallel_results, sequential_results);
     }
@@ -174,7 +184,8 @@ mod tests {
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 5, y: 2 }).unwrap();
 
         let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
-        let parallel_results = generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
+        let parallel_results =
+            generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
 
         assert_eq!(parallel_results, sequential_results);
     }

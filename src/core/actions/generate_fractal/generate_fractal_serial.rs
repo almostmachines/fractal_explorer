@@ -1,14 +1,15 @@
+use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
-use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
 
 #[allow(dead_code)]
-pub fn generate_fractal_serial<Alg: FractalAlgorithm>(pixel_rect: PixelRect, algorithm: &Alg) -> Result<Vec<Alg::Success>, Alg::Failure>
-{
+pub fn generate_fractal_serial<Alg: FractalAlgorithm>(
+    pixel_rect: PixelRect,
+    algorithm: &Alg,
+) -> Result<Vec<Alg::Success>, Alg::Failure> {
     (pixel_rect.top_left().y..=pixel_rect.bottom_right().y)
         .flat_map(|y| {
-            (pixel_rect.top_left().x..=pixel_rect.bottom_right().x)
-                .map(move |x| Point { x, y })
+            (pixel_rect.top_left().x..=pixel_rect.bottom_right().x).map(move |x| Point { x, y })
         })
         .map(|pixel| {
             let result = algorithm.compute(pixel)?;
@@ -20,9 +21,9 @@ pub fn generate_fractal_serial<Alg: FractalAlgorithm>(pixel_rect: PixelRect, alg
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::error::Error;
     use crate::core::data::pixel_rect::PixelRect;
     use crate::core::data::point::Point;
+    use std::error::Error;
 
     #[derive(Debug, PartialEq)]
     struct StubError {}
@@ -62,7 +63,7 @@ mod tests {
     #[test]
     fn test_generates_correct_results() {
         let algorithm = StubSuccessAlgorithm {};
-        let pixel_rect = PixelRect::new(Point { x:0, y:0 }, Point { x:2, y:3 }).unwrap();
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 2, y: 3 }).unwrap();
         let expected_results: Vec<u64> = vec![0, 1, 2, 1, 2, 3, 2, 3, 4, 3, 4, 5];
         let results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
 
@@ -72,7 +73,7 @@ mod tests {
     #[test]
     fn test_propagates_algorithm_failure() {
         let algorithm = StubFailureAlgorithm {};
-        let pixel_rect = PixelRect::new(Point { x:0, y:0 }, Point { x:3, y:4 }).unwrap();
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 4 }).unwrap();
         let results = generate_fractal_serial(pixel_rect, &algorithm);
 
         assert_eq!(results, Err(StubError {}));

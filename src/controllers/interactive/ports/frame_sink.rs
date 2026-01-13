@@ -4,37 +4,40 @@
 //! This is the output port in ports & adapters terminology, decoupling
 //! the controller from any specific presentation implementation.
 
+use std::time::Duration;
+
+use crate::core::data::pixel_buffer::PixelBuffer;
+use crate::core::data::pixel_rect::PixelRect;
+
 /// A rendered frame ready for display.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct FrameMessage {
+    /// Monotonic generation identifier for the request that produced this frame.
+    pub generation: u64,
+    /// Pixel-space bounds of the rendered frame.
+    pub pixel_rect: PixelRect,
     /// RGB pixel data (3 bytes per pixel, row-major order).
-    pub pixel_data: Vec<u8>,
-    /// Frame width in pixels.
-    pub width: u32,
-    /// Frame height in pixels.
-    pub height: u32,
-    /// Time taken to render this frame in milliseconds.
-    pub render_time_ms: u64,
+    pub pixel_buffer: PixelBuffer,
+    /// Time taken to render this frame.
+    pub render_duration: Duration,
 }
 
 /// Information about a render error.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct RenderErrorMessage {
+    /// Monotonic generation identifier for the request that failed.
+    pub generation: u64,
     /// Human-readable error description.
     pub message: String,
-    /// Whether the controller can continue operating after this error.
-    pub recoverable: bool,
 }
 
 /// Events emitted by the render pipeline.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum RenderEvent {
     /// A new frame is available for display.
-    FrameReady(FrameMessage),
+    Frame(FrameMessage),
     /// An error occurred during rendering.
-    RenderError(RenderErrorMessage),
-    /// Rendering has started (useful for UI feedback like spinners).
-    RenderStarted,
+    Error(RenderErrorMessage),
 }
 
 /// Output port for receiving render events.
@@ -50,5 +53,5 @@ pub enum RenderEvent {
 /// - A network adapter that streams frames to clients
 pub trait FrameSink: Send + Sync {
     /// Send a render event to the sink.
-    fn send_event(&self, event: RenderEvent);
+    fn submit(&self, event: RenderEvent);
 }
