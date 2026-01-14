@@ -378,4 +378,104 @@ mod tests {
         assert!(saw_frame, "expected a frame event");
         controller.shutdown();
     }
+
+    #[test]
+    fn test_generation_ids_increment() {
+        let frame_sink = Arc::new(MockFrameSink::default());
+        let mut controller =
+            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn FrameSink>);
+
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
+        let request = create_test_request(pixel_rect);
+
+        // Submit request A
+        controller.submit_request(request.clone());
+        let events_a = wait_for_events(frame_sink.as_ref(), Duration::from_secs(2));
+        assert!(!events_a.is_empty(), "expected events from request A");
+        let gen_a = extract_generation(&events_a);
+
+        // Submit request B
+        controller.submit_request(request.clone());
+        let events_b = wait_for_events(frame_sink.as_ref(), Duration::from_secs(2));
+        assert!(!events_b.is_empty(), "expected events from request B");
+        let gen_b = extract_generation(&events_b);
+
+        assert!(
+            gen_b > gen_a,
+            "Generation B ({}) should be greater than A ({})",
+            gen_b,
+            gen_a
+        );
+
+        controller.shutdown();
+    }
+
+    fn extract_generation(events: &[RenderEvent]) -> u64 {
+        events
+            .iter()
+            .find_map(|e| match e {
+                RenderEvent::Frame(frame) => Some(frame.generation),
+                RenderEvent::Error(err) => Some(err.generation),
+            })
+            .expect("Should have at least one event with generation")
+    }
+
+    #[test]
+    fn test_ui_layer_filters_stale_generations() {
+        // Simulate presenter behavior without actual GUI.
+        // This tests the filtering logic that the UI layer should implement.
+        struct PresenterState {
+            last_presented_generation: u64,
+        }
+
+        impl PresenterState {
+            fn should_present(&self, incoming_generation: u64) -> bool {
+                incoming_generation > self.last_presented_generation
+            }
+
+            fn present(&mut self, generation: u64) -> bool {
+                if self.should_present(generation) {
+                    self.last_presented_generation = generation;
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+
+        let mut state = PresenterState {
+            last_presented_generation: 0,
+        };
+
+        // Simulate out-of-order frame arrivals
+        assert!(state.present(3), "Frame 3 should be presented (first frame)");
+        assert_eq!(state.last_presented_generation, 3);
+
+        assert!(
+            !state.present(1),
+            "Frame 1 should be rejected (stale, arrived late)"
+        );
+        assert_eq!(
+            state.last_presented_generation, 3,
+            "Generation should remain at 3 after rejecting stale frame"
+        );
+
+        assert!(
+            !state.present(2),
+            "Frame 2 should be rejected (stale, arrived late)"
+        );
+        assert_eq!(state.last_presented_generation, 3);
+
+        assert!(state.present(5), "Frame 5 should be presented (newer)");
+        assert_eq!(state.last_presented_generation, 5);
+
+        assert!(
+            !state.present(4),
+            "Frame 4 should be rejected (stale, arrived late)"
+        );
+        assert_eq!(state.last_presented_generation, 5);
+
+        assert!(state.present(6), "Frame 6 should be presented (newer)");
+        assert_eq!(state.last_presented_generation, 6);
+    }
 }
