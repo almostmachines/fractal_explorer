@@ -87,6 +87,7 @@ bd sync               # Commit and push changes
 4. **Discovery**: If you discover new work, create a new bead with discovered-from:<parent-id>.
 5. **Complete**: Mark the issue as closed with `bd close <id>`. Commit and push your work.
 6. **Sync**: Always run `bd sync` after marking an issue as complete, even if you didn't commit any work.
+7. **Repeat**: Repeat this workflow pattern until there are no more beads to work on
 
 ### Landing the Plane (Session Completion)
 
