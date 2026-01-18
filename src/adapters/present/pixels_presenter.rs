@@ -38,7 +38,7 @@ impl PixelsPresenter {
     }
 
     pub fn copy_pixel_buffer_into_pixels_frame(frame: &FrameData, pixels: &mut Pixels) {
-        let pixel_rect = frame.pixel_rect;
+        let pixel_rect = frame.pixel_buffer.pixel_rect();
         let width = pixel_rect.width();
         let height = pixel_rect.height();
         let expected_rgb_len = (width * height * 3) as usize;

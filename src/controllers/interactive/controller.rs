@@ -216,7 +216,6 @@ impl InteractiveController {
 
                     shared.presenter_port.present(RenderEvent::Frame(FrameData {
                         generation: job_generation,
-                        pixel_rect: request.pixel_rect,
                         pixel_buffer,
                         render_duration,
                     }));
@@ -429,7 +428,7 @@ mod tests {
                 RenderEvent::Frame(frame) => {
                     assert_eq!(frame.generation, generation);
                     assert!(generation > 0, "generation should be non-zero");
-                    assert_eq!(frame.pixel_rect, request.pixel_rect);
+                    assert_eq!(frame.pixel_buffer.pixel_rect(), request.pixel_rect);
                     assert_eq!(
                         frame.pixel_buffer.buffer().len(),
                         (request.pixel_rect.width() * request.pixel_rect.height() * 3) as usize
