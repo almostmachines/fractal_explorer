@@ -47,7 +47,7 @@ struct SharedState {
     shutdown: AtomicBool,
 
     /// Output port for delivering rendered frames to the presentation layer.
-    frame_sink: Arc<dyn PresenterPort>,
+    presenter_port: Arc<dyn PresenterPort>,
 }
 
 /// Interactive controller for real-time fractal rendering.
@@ -95,18 +95,18 @@ impl InteractiveController {
     ///
     /// # Arguments
     ///
-    /// * `frame_sink` - Output port for receiving rendered frames
+    /// * `presenter_port` - Output port for receiving rendered frames
     ///
     /// # Returns
     ///
     /// A new controller ready to accept render requests via `submit_request()`.
-    pub fn new(frame_sink: Arc<dyn PresenterPort>) -> Self {
+    pub fn new(presenter_port: Arc<dyn PresenterPort>) -> Self {
         let shared = Arc::new(SharedState {
             generation: AtomicU64::new(0),
             latest_request: Mutex::new(None),
             wake: Condvar::new(),
             shutdown: AtomicBool::new(false),
-            frame_sink,
+            presenter_port,
         });
 
         // Clone Arc for the worker thread
@@ -214,7 +214,7 @@ impl InteractiveController {
                         continue;
                     }
 
-                    shared.frame_sink.present(RenderEvent::Frame(FrameData {
+                    shared.presenter_port.present(RenderEvent::Frame(FrameData {
                         generation: job_generation,
                         pixel_rect: request.pixel_rect,
                         pixel_buffer,
@@ -234,7 +234,7 @@ impl InteractiveController {
                     }
 
                     shared
-                        .frame_sink
+                        .presenter_port
                         .present(RenderEvent::Error(RenderError {
                             generation: job_generation,
                             message,
@@ -412,15 +412,15 @@ mod tests {
 
     #[test]
     fn test_submit_request_emits_frame() {
-        let frame_sink = Arc::new(MockPresenterPort::default());
+        let presenter_port = Arc::new(MockPresenterPort::default());
         let mut controller =
-            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn PresenterPort>);
+            InteractiveController::new(Arc::clone(&presenter_port) as Arc<dyn PresenterPort>);
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = create_test_request(pixel_rect);
 
         let generation = controller.submit_request(request.clone());
-        let events = wait_for_events(frame_sink.as_ref(), Duration::from_secs(2));
+        let events = wait_for_events(presenter_port.as_ref(), Duration::from_secs(2));
         assert!(!events.is_empty(), "expected a render event");
 
         let mut saw_frame = false;
@@ -448,22 +448,22 @@ mod tests {
 
     #[test]
     fn test_generation_ids_increment() {
-        let frame_sink = Arc::new(MockPresenterPort::default());
+        let presenter_port = Arc::new(MockPresenterPort::default());
         let mut controller =
-            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn PresenterPort>);
+            InteractiveController::new(Arc::clone(&presenter_port) as Arc<dyn PresenterPort>);
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = create_test_request(pixel_rect);
 
         // Submit request A
         controller.submit_request(request.clone());
-        let events_a = wait_for_events(frame_sink.as_ref(), Duration::from_secs(2));
+        let events_a = wait_for_events(presenter_port.as_ref(), Duration::from_secs(2));
         assert!(!events_a.is_empty(), "expected events from request A");
         let gen_a = extract_generation(&events_a);
 
         // Submit request B
         controller.submit_request(request.clone());
-        let events_b = wait_for_events(frame_sink.as_ref(), Duration::from_secs(2));
+        let events_b = wait_for_events(presenter_port.as_ref(), Duration::from_secs(2));
         assert!(!events_b.is_empty(), "expected events from request B");
         let gen_b = extract_generation(&events_b);
 
@@ -550,9 +550,9 @@ mod tests {
     fn test_rapid_requests_do_not_emit_cancellation_errors() {
         // Submit multiple rapid requests; the controller should emit only Frame events
         // (no Error events for cancelled work).
-        let frame_sink = Arc::new(MockPresenterPort::default());
+        let presenter_port = Arc::new(MockPresenterPort::default());
         let mut controller =
-            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn PresenterPort>);
+            InteractiveController::new(Arc::clone(&presenter_port) as Arc<dyn PresenterPort>);
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = create_test_request(pixel_rect);
@@ -564,7 +564,7 @@ mod tests {
 
         // Wait for events to settle
         thread::sleep(Duration::from_millis(500));
-        let events = frame_sink.take_events();
+        let events = presenter_port.take_events();
 
         // Verify no Error events were emitted (cancellation should not produce errors)
         for event in &events {
@@ -586,9 +586,9 @@ mod tests {
     #[test]
     fn test_newest_request_yields_emitted_frame() {
         // Submit multiple requests; the final frame should have the highest generation.
-        let frame_sink = Arc::new(MockPresenterPort::default());
+        let presenter_port = Arc::new(MockPresenterPort::default());
         let mut controller =
-            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn PresenterPort>);
+            InteractiveController::new(Arc::clone(&presenter_port) as Arc<dyn PresenterPort>);
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = create_test_request(pixel_rect);
@@ -601,7 +601,7 @@ mod tests {
 
         // Wait for rendering to complete
         thread::sleep(Duration::from_millis(500));
-        let events = frame_sink.take_events();
+        let events = presenter_port.take_events();
 
         // Find the highest generation among emitted frames
         let max_emitted_gen = events
@@ -633,9 +633,9 @@ mod tests {
         // This is a conceptual test - when cancellation occurs, no event should be emitted.
         // We verify this by checking that Frame events only contain valid pixel buffers
         // (i.e., no partially rendered or corrupted data).
-        let frame_sink = Arc::new(MockPresenterPort::default());
+        let presenter_port = Arc::new(MockPresenterPort::default());
         let mut controller =
-            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn PresenterPort>);
+            InteractiveController::new(Arc::clone(&presenter_port) as Arc<dyn PresenterPort>);
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = create_test_request(pixel_rect);
@@ -645,7 +645,7 @@ mod tests {
         controller.submit_request(request.clone());
 
         // Wait for completion
-        let events = wait_for_events(frame_sink.as_ref(), Duration::from_secs(2));
+        let events = wait_for_events(presenter_port.as_ref(), Duration::from_secs(2));
 
         // Verify all emitted frames have valid, complete buffers
         for event in events {

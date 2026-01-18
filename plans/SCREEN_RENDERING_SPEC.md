@@ -121,7 +121,7 @@ src/
 │       ├── types.rs                  # RenderRequest + enums
 │       └── ports/
 │           ├── mod.rs
-│           └── frame_sink.rs         # PresenterPort output port
+│           └── presenter_port.rs         # PresenterPort output port
 ├── input/
 │   └── gui/
 │       ├── mod.rs                    # run_gui()

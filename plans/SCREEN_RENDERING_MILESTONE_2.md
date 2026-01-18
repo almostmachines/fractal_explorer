@@ -78,7 +78,7 @@ Milestone 2 implements *generation-based supersession* (discarding stale results
 - `src/controllers/interactive/types.rs`
 - `src/controllers/interactive/controller.rs`
 - `src/controllers/interactive/ports/mod.rs`
-- `src/controllers/interactive/ports/frame_sink.rs`
+- `src/controllers/interactive/ports/presenter_port.rs`
 
 **Files to modify**
 
@@ -96,7 +96,7 @@ Recommended derives for ergonomic change-detection and debugging:
 - `#[derive(Debug, Clone, PartialEq)]` for `RenderRequest`, `FractalParams`
 - `#[derive(Debug, Copy, Clone, PartialEq, Eq)]` for the `*Kind` enums
 
-**Output messages (`src/controllers/interactive/ports/frame_sink.rs`)**
+**Output messages (`src/controllers/interactive/ports/presenter_port.rs`)**
 
 - `FrameData` (contains at least `generation`, `pixel_rect` and `PixelBuffer`; include render duration)
 - `RenderError` (contains at least `generation`; string message is fine initially)
@@ -117,7 +117,7 @@ Notes:
 
 **Public API (suggested)**
 
-- `InteractiveController::new(frame_sink: Arc<dyn PresenterPort>) -> Self`
+- `InteractiveController::new(presenter_port: Arc<dyn PresenterPort>) -> Self`
 - `InteractiveController::submit_request(&self, request: RenderRequest) -> u64` (returns the request generation)
 - `InteractiveController::shutdown(self)` (or `Drop` joins worker thread)
 
@@ -230,7 +230,7 @@ Notes:
 **4.2 Instantiate presenter + controller during app startup**
 
 - Create a `PixelsPresenter` (or similar) with the proxy.
-- Create an `InteractiveController` with `presenter.frame_sink()` (likely `Arc<dyn PresenterPort>`).
+- Create an `InteractiveController` with `presenter.presenter_port()` (likely `Arc<dyn PresenterPort>`).
 - Store both on the `App` struct.
 
 **4.3 Replace placeholder drawing with “present latest frame”**

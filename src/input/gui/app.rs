@@ -346,8 +346,8 @@ pub fn run_gui() {
         .expect("Failed to create event loop");
     let event_loop_proxy = event_loop.create_proxy();
     let presenter = PixelsPresenter::new(event_loop_proxy);
-    let frame_sink = presenter.share_presenter_port();
-    let controller = InteractiveController::new(frame_sink);
+    let presenter_port = presenter.share_presenter_port();
+    let controller = InteractiveController::new(presenter_port);
 
     // Leak the window to get a 'static reference for pixels
     let window: &'static Window = Box::leak(Box::new(
