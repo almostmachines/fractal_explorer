@@ -77,12 +77,7 @@ impl PixelsPresenter {
         }
     }
 
-    pub fn render(&mut self, egui_output: egui::FullOutput, egui_ctx: &EguiContext, requested_generation: u64) -> Result<(), pixels::Error> {
-        if self.width == 0 || self.height == 0 {
-            return Ok(());
-        }
-
-        let mut drew_frame = false;
+    pub fn maybe_draw_frame(&mut self, requested_generation: u64) {
         if let Some(event) = self.take_render_event() {
             match event {
                 RenderEvent::Frame(frame) => {
@@ -95,7 +90,6 @@ impl PixelsPresenter {
                         self.has_frame = true;
                         self.last_render_duration = Some(frame.render_duration);
                         self.last_error_message = None;
-                        drew_frame = true;
                     }
                 }
                 RenderEvent::Error(error) => {
@@ -105,23 +99,31 @@ impl PixelsPresenter {
                 }
             }
         }
+    }
 
-        if !drew_frame && !self.has_frame {
-            self.draw_placeholder();
+    pub fn render(&mut self, egui_output: egui::FullOutput, egui_ctx: &EguiContext, requested_generation: u64) -> Result<(), pixels::Error> {
+        if self.width == 0 || self.height == 0 {
+            return Ok(());
         }
 
-        let clipped_primitives = egui_ctx.tessellate(egui_output.shapes, egui_ctx.pixels_per_point());
+        self.maybe_draw_frame(requested_generation);
 
-        let screen_descriptor = egui_wgpu::ScreenDescriptor {
-            size_in_pixels: [self.width, self.height],
-            pixels_per_point: egui_ctx.pixels_per_point(),
-        };
-
-        let textures_delta = egui_output.textures_delta;
+        if !self.has_frame {
+            self.draw_placeholder();
+        }
 
         self.pixels.render_with(|encoder, render_target, context| {
             // First, render the pixels framebuffer (the scaling pass)
             context.scaling_renderer.render(encoder, render_target);
+
+            let clipped_primitives = egui_ctx.tessellate(egui_output.shapes, egui_ctx.pixels_per_point());
+
+            let screen_descriptor = egui_wgpu::ScreenDescriptor {
+                size_in_pixels: [self.width, self.height],
+                pixels_per_point: egui_ctx.pixels_per_point(),
+            };
+
+            let textures_delta = egui_output.textures_delta;
 
             // Upload new/changed egui textures
             for (id, delta) in &textures_delta.set {
