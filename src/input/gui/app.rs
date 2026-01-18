@@ -127,7 +127,7 @@ impl App {
         if let Some(event) = self.presenter.take_render_event() {
             match event {
                 RenderEvent::Frame(frame) => {
-                    let pixel_rect = frame.pixel_rect;
+                    let pixel_rect = frame.pixel_buffer.pixel_rect();
                     if frame.generation == latest_generation
                         && pixel_rect.width() == self.width
                         && pixel_rect.height() == self.height
