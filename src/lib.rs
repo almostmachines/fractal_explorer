@@ -1,4 +1,4 @@
-mod adapters;
+mod presenters;
 mod controllers;
 mod core;
 #[cfg(feature = "gui")]

@@ -2,7 +2,7 @@ use std::time::Duration;
 use egui::Context;
 use egui_winit::State as EguiWinitState;
 use super::{GuiEvent, UiState};
-use crate::adapters::present::PixelsPresenter;
+use crate::presenters::PixelsPresenter;
 use crate::controllers::interactive::InteractiveController;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
