@@ -5,15 +5,7 @@
 //! the controller from any specific presentation implementation.
 
 use crate::controllers::interactive::data::frame_data::FrameData;
-
-/// Information about a render error.
-#[derive(Debug)]
-pub struct RenderErrorMessage {
-    /// Monotonic generation identifier for the request that failed.
-    pub generation: u64,
-    /// Human-readable error description.
-    pub message: String,
-}
+use crate::controllers::interactive::errors::render_error::RenderError;
 
 /// Events emitted by the render pipeline.
 #[derive(Debug)]
@@ -21,7 +13,7 @@ pub enum RenderEvent {
     /// A new frame is available for display.
     Frame(FrameData),
     /// An error occurred during rendering.
-    Error(RenderErrorMessage),
+    Error(RenderError),
 }
 
 /// Output port for receiving render events.

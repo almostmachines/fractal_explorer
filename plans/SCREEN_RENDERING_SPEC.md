@@ -225,14 +225,14 @@ pub struct FrameData {
     pub render_duration: std::time::Duration,
 }
 
-pub struct RenderErrorMessage {
+pub struct RenderError {
     pub generation: u64,
     pub message: String,
 }
 
 pub enum RenderEvent {
     Frame(FrameData),
-    Error(RenderErrorMessage),
+    Error(RenderError),
 }
 ```
 

@@ -99,7 +99,7 @@ Recommended derives for ergonomic change-detection and debugging:
 **Output messages (`src/controllers/interactive/ports/frame_sink.rs`)**
 
 - `FrameData` (contains at least `generation`, `pixel_rect` and `PixelBuffer`; include render duration)
-- `RenderErrorMessage` (contains at least `generation`; string message is fine initially)
+- `RenderError` (contains at least `generation`; string message is fine initially)
 - `RenderEvent` enum (`Frame` | `Error`)
 - `FrameSink` trait:
   - `pub trait FrameSink: Send + Sync { fn submit(&self, event: RenderEvent); }`
@@ -142,7 +142,7 @@ Worker loop behavior:
    - if `job_generation != generation.load(...)`, discard the result and loop
 5. Submit either:
    - `RenderEvent::Frame(FrameData { generation: job_generation, pixel_rect, pixel_buffer, render_duration, ... })`, or
-   - `RenderEvent::Error(RenderErrorMessage { generation: job_generation, message, ... })`
+   - `RenderEvent::Error(RenderError { generation: job_generation, message, ... })`
 
 Validation expectations:
 

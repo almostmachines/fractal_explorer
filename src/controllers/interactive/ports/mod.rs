@@ -5,4 +5,4 @@
 
 mod frame_sink;
 
-pub use frame_sink::{FrameSink, RenderErrorMessage, RenderEvent};
+pub use frame_sink::{FrameSink, RenderEvent};
