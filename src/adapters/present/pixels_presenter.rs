@@ -70,21 +70,10 @@ impl PixelsPresenter {
 
     fn draw_placeholder(&mut self) {
         let frame = self.pixels.frame_mut();
-        let width = self.width as usize;
-        let tile_size = 32;
-
-        for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
-            let x = i % width;
-            let y = i / width;
-
-            let tile_x = x / tile_size;
-            let tile_y = y / tile_size;
-            let is_dark = (tile_x + tile_y).is_multiple_of(2);
-
-            let base = if is_dark { 60 } else { 200 };
-            pixel[0] = base;
-            pixel[1] = base;
-            pixel[2] = base;
+        for pixel in frame.chunks_exact_mut(4) {
+            pixel[0] = 0;
+            pixel[1] = 0;
+            pixel[2] = 0;
             pixel[3] = 255;
         }
     }
