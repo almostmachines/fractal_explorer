@@ -9,7 +9,7 @@ use crate::input::gui::GuiEvent;
 
 struct PresenterInner {
     render_event: Mutex<Option<RenderEvent>>,
-    proxy: EventLoopProxy<GuiEvent>,
+    event_loop_proxy: EventLoopProxy<GuiEvent>,
 }
 
 pub struct PixelsPresenter {
@@ -17,11 +17,11 @@ pub struct PixelsPresenter {
 }
 
 impl PixelsPresenter {
-    pub fn new(proxy: EventLoopProxy<GuiEvent>) -> Self {
+    pub fn new(event_loop_proxy: EventLoopProxy<GuiEvent>) -> Self {
         Self {
             inner: Arc::new(PresenterInner {
                 render_event: Mutex::new(None),
-                proxy,
+                event_loop_proxy,
             }),
         }
     }
@@ -70,6 +70,6 @@ impl PixelsPresenter {
 impl FrameSink for PresenterInner {
     fn submit(&self, event: RenderEvent) {
         *self.render_event.lock().unwrap() = Some(event);
-        let _ = self.proxy.send_event(GuiEvent::Wake);
+        let _ = self.event_loop_proxy.send_event(GuiEvent::Wake);
     }
 }
