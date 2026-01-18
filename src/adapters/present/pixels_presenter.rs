@@ -7,7 +7,6 @@ use egui::Context as EguiContext;
 use egui_wgpu::Renderer as EguiRenderer;
 use winit::event_loop::EventLoopProxy;
 use winit::window::Window;
-use crate::adapters::pixel_format::copy_rgb_to_rgba;
 use crate::controllers::interactive::ports::presenter_port::PresenterPort;
 use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::controllers::interactive::events::render_event::RenderEvent;
@@ -209,7 +208,12 @@ impl PixelsPresenter {
             height
         );
 
-        copy_rgb_to_rgba(src, dest);
+        for (src_pixel, dst_pixel) in src.chunks_exact(3).zip(dest.chunks_exact_mut(4)) {
+            dst_pixel[0] = src_pixel[0];
+            dst_pixel[1] = src_pixel[1];
+            dst_pixel[2] = src_pixel[2];
+            dst_pixel[3] = 255;
+        }
     }
 }
 
