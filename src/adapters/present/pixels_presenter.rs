@@ -9,19 +9,19 @@ use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::controllers::interactive::events::render_event::RenderEvent;
 use crate::input::gui::GuiEvent;
 
-struct PresenterInner {
+struct PixelsPresenterPort {
     render_event: Mutex<Option<RenderEvent>>,
     event_loop_proxy: EventLoopProxy<GuiEvent>,
 }
 
 pub struct PixelsPresenter {
-    inner: Arc<PresenterInner>,
+    inner: Arc<PixelsPresenterPort>,
 }
 
 impl PixelsPresenter {
     pub fn new(event_loop_proxy: EventLoopProxy<GuiEvent>) -> Self {
         Self {
-            inner: Arc::new(PresenterInner {
+            inner: Arc::new(PixelsPresenterPort {
                 render_event: Mutex::new(None),
                 event_loop_proxy,
             }),
@@ -69,7 +69,7 @@ impl PixelsPresenter {
     }
 }
 
-impl PresenterPort for PresenterInner {
+impl PresenterPort for PixelsPresenterPort {
     fn present(&self, event: RenderEvent) {
         *self.render_event.lock().unwrap() = Some(event);
         let _ = self.event_loop_proxy.send_event(GuiEvent::Wake);
