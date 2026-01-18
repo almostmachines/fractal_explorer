@@ -4,7 +4,6 @@ use crate::core::data::pixel_rect::PixelRect;
 
 #[derive(Debug)]
 pub struct FrameData {
-    /// Monotonic generation identifier for the request that produced this frame.
     pub generation: u64,
     pub pixel_rect: PixelRect,
     pub pixel_buffer: PixelBuffer,
