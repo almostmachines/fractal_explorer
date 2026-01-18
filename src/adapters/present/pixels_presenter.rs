@@ -28,7 +28,7 @@ impl PixelsPresenter {
         }
     }
 
-    pub fn frame_sink(&self) -> Arc<dyn PresenterPort> {
+    pub fn share_presenter_port(&self) -> Arc<dyn PresenterPort> {
         Arc::clone(&self.inner) as Arc<dyn PresenterPort>
     }
 
