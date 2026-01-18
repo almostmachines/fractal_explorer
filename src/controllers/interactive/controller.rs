@@ -8,6 +8,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
+use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::core::actions::generate_fractal::generate_fractal_parallel_rayon::{
     generate_fractal_parallel_rayon_cancelable, GenerateFractalError,
 };
@@ -18,7 +19,7 @@ use crate::core::data::pixel_buffer::PixelBuffer;
 use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
 use crate::core::fractals::mandelbrot::colour_maps::blue_white_gradient::MandelbrotBlueWhiteGradient;
 
-use super::ports::{FrameMessage, FrameSink, RenderErrorMessage, RenderEvent};
+use super::ports::{FrameSink, RenderErrorMessage, RenderEvent};
 use super::types::{ColourSchemeKind, FractalKind, FractalParams, RenderRequest};
 
 /// Shared state between the controller and its worker thread.
@@ -211,7 +212,7 @@ impl InteractiveController {
                         continue;
                     }
 
-                    shared.frame_sink.submit(RenderEvent::Frame(FrameMessage {
+                    shared.frame_sink.submit(RenderEvent::Frame(FrameData {
                         generation: job_generation,
                         pixel_rect: request.pixel_rect,
                         pixel_buffer,

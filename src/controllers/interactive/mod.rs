@@ -12,8 +12,9 @@
 
 mod controller;
 pub mod ports;
+pub mod data;
 mod types;
 
 pub use controller::InteractiveController;
-pub use ports::{FrameMessage, FrameSink, RenderErrorMessage, RenderEvent};
+pub use ports::{FrameSink, RenderErrorMessage, RenderEvent};
 pub use types::{ColourSchemeKind, FractalKind, FractalParams, RenderRequest};

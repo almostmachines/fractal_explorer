@@ -218,7 +218,7 @@ The domain already has `PixelBuffer` (RGB, 3 bytes/pixel). To minimize churn, th
 Output messages:
 
 ```rust
-pub struct FrameMessage {
+pub struct FrameData {
     pub generation: u64,
     pub pixel_rect: PixelRect, // redundant but convenient for validation
     pub pixel_buffer: PixelBuffer,
@@ -231,7 +231,7 @@ pub struct RenderErrorMessage {
 }
 
 pub enum RenderEvent {
-    Frame(FrameMessage),
+    Frame(FrameData),
     Error(RenderErrorMessage),
 }
 ```
@@ -462,7 +462,7 @@ Performance considerations:
 3. Controller invokes:
    - fractal iteration generation (existing `core/actions/generate_fractal/*`)
    - pixel buffer generation (existing `core/actions/generate_pixel_buffer`)
-4. Controller wraps the result as `FrameMessage { generation, pixel_rect, pixel_buffer, render_duration }`.
+4. Controller wraps the result as `FrameData { generation, pixel_rect, pixel_buffer, render_duration }`.
 5. Controller delivers `RenderEvent::Frame(...)` via `FrameSink`.
 6. UI thread receives wake event, pulls the latest frame, converts to RGBA, and calls `pixels.render()`.
 7. Egui UI renders on top (or alongside) depending on chosen integration.

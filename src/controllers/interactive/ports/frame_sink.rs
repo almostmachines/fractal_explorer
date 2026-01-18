@@ -4,23 +4,7 @@
 //! This is the output port in ports & adapters terminology, decoupling
 //! the controller from any specific presentation implementation.
 
-use std::time::Duration;
-
-use crate::core::data::pixel_buffer::PixelBuffer;
-use crate::core::data::pixel_rect::PixelRect;
-
-/// A rendered frame ready for display.
-#[derive(Debug)]
-pub struct FrameMessage {
-    /// Monotonic generation identifier for the request that produced this frame.
-    pub generation: u64,
-    /// Pixel-space bounds of the rendered frame.
-    pub pixel_rect: PixelRect,
-    /// RGB pixel data (3 bytes per pixel, row-major order).
-    pub pixel_buffer: PixelBuffer,
-    /// Time taken to render this frame.
-    pub render_duration: Duration,
-}
+use crate::controllers::interactive::data::frame_data::FrameData;
 
 /// Information about a render error.
 #[derive(Debug)]
@@ -35,7 +19,7 @@ pub struct RenderErrorMessage {
 #[derive(Debug)]
 pub enum RenderEvent {
     /// A new frame is available for display.
-    Frame(FrameMessage),
+    Frame(FrameData),
     /// An error occurred during rendering.
     Error(RenderErrorMessage),
 }

@@ -4,7 +4,8 @@ use pixels::Pixels;
 use winit::event_loop::EventLoopProxy;
 
 use crate::adapters::pixel_format::copy_rgb_to_rgba;
-use crate::controllers::interactive::ports::{FrameMessage, FrameSink, RenderEvent};
+use crate::controllers::interactive::ports::{FrameSink, RenderEvent};
+use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::input::gui::GuiEvent;
 
 struct PresenterInner {
@@ -35,7 +36,7 @@ impl PixelsPresenter {
         self.inner.render_event.lock().unwrap().take()
     }
 
-    pub fn copy_pixel_buffer_into_pixels_frame(frame: &FrameMessage, pixels: &mut Pixels) {
+    pub fn copy_pixel_buffer_into_pixels_frame(frame: &FrameData, pixels: &mut Pixels) {
         let pixel_rect = frame.pixel_rect;
         let width = pixel_rect.width();
         let height = pixel_rect.height();

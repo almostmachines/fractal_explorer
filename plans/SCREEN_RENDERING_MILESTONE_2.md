@@ -98,7 +98,7 @@ Recommended derives for ergonomic change-detection and debugging:
 
 **Output messages (`src/controllers/interactive/ports/frame_sink.rs`)**
 
-- `FrameMessage` (contains at least `generation`, `pixel_rect` and `PixelBuffer`; include render duration)
+- `FrameData` (contains at least `generation`, `pixel_rect` and `PixelBuffer`; include render duration)
 - `RenderErrorMessage` (contains at least `generation`; string message is fine initially)
 - `RenderEvent` enum (`Frame` | `Error`)
 - `FrameSink` trait:
@@ -141,7 +141,7 @@ Worker loop behavior:
 4. Before emitting, confirm the job is still current (“soft cancellation”):
    - if `job_generation != generation.load(...)`, discard the result and loop
 5. Submit either:
-   - `RenderEvent::Frame(FrameMessage { generation: job_generation, pixel_rect, pixel_buffer, render_duration, ... })`, or
+   - `RenderEvent::Frame(FrameData { generation: job_generation, pixel_rect, pixel_buffer, render_duration, ... })`, or
    - `RenderEvent::Error(RenderErrorMessage { generation: job_generation, message, ... })`
 
 Validation expectations:
