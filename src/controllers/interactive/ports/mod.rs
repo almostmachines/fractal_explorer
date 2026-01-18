@@ -3,4 +3,4 @@
 //! Contains trait definitions that define interfaces between the controller
 //! and external systems (presentation layer, input sources, etc.).
 
-pub mod frame_sink;
+pub mod presenter_port;

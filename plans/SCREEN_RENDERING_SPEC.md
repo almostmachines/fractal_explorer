@@ -87,11 +87,11 @@ These may be added later without violating the architecture in this spec.
            │  - cancellation (generation) │
            │  - calls core actions        │
            └──────────────┬───────────────┘
-                          │ RenderEvent via FrameSink port
+                          │ RenderEvent via PresenterPort port
                           ▼
            ┌──────────────────────────────┐
            │ adapters/present (adapter)   │
-           │  FrameSink impl: store latest│
+           │  PresenterPort impl: store latest│
            │  + wake UI (EventLoopProxy)  │
            └──────────────┬───────────────┘
                           │ drained on UI thread
@@ -121,7 +121,7 @@ src/
 │       ├── types.rs                  # RenderRequest + enums
 │       └── ports/
 │           ├── mod.rs
-│           └── frame_sink.rs         # FrameSink output port
+│           └── frame_sink.rs         # PresenterPort output port
 ├── input/
 │   └── gui/
 │       ├── mod.rs                    # run_gui()
@@ -134,7 +134,7 @@ src/
 └── adapters/
     └── present/
         ├── mod.rs
-        └── pixels_presenter.rs       # FrameSink impl + latest-frame storage
+        └── pixels_presenter.rs       # PresenterPort impl + latest-frame storage
 ```
 
 ### Existing modules remain
@@ -239,12 +239,12 @@ pub enum RenderEvent {
 Output port:
 
 ```rust
-pub trait FrameSink: Send + Sync {
+pub trait PresenterPort: Send + Sync {
     fn submit(&self, event: RenderEvent);
 }
 ```
 
-Requirements for `FrameSink::submit`:
+Requirements for `PresenterPort::submit`:
 
 - Must be thread-safe.
 - Must not call `pixels.render()` or access wgpu surface resources directly.
@@ -262,7 +262,7 @@ The interactive controller is an application-layer orchestrator. It must:
 - Accept render requests (from the input adapter).
 - Manage cancellation/supersession of in-flight renders.
 - Run CPU fractal generation and colour mapping using existing `core/actions`.
-- Deliver render events to the output port (`FrameSink`).
+- Deliver render events to the output port (`PresenterPort`).
 
 ### Threading model
 
@@ -420,7 +420,7 @@ Implementation notes:
 
 The pixels adapter has two concerns:
 
-1. **Output port implementation** (`FrameSink`):
+1. **Output port implementation** (`PresenterPort`):
    - Accept `RenderEvent` from controller/worker thread.
    - Store the latest frame (and generation) in a thread-safe slot (and optionally the latest error for UI display).
    - Wake the UI thread so it will redraw promptly.
@@ -433,7 +433,7 @@ The pixels adapter has two concerns:
 Recommended structure:
 
 - `PixelsPresenter` struct used by `input/gui/app.rs`:
-  - `FrameSink` implementation for the controller.
+  - `PresenterPort` implementation for the controller.
   - UI-thread methods:
     - `take_latest()` or `latest_ref()` to get the newest frame
     - `copy_into_pixels_frame(&mut Pixels)` to copy RGB→RGBA efficiently
@@ -463,7 +463,7 @@ Performance considerations:
    - fractal iteration generation (existing `core/actions/generate_fractal/*`)
    - pixel buffer generation (existing `core/actions/generate_pixel_buffer`)
 4. Controller wraps the result as `FrameData { generation, pixel_rect, pixel_buffer, render_duration }`.
-5. Controller delivers `RenderEvent::Frame(...)` via `FrameSink`.
+5. Controller delivers `RenderEvent::Frame(...)` via `PresenterPort`.
 6. UI thread receives wake event, pulls the latest frame, converts to RGBA, and calls `pixels.render()`.
 7. Egui UI renders on top (or alongside) depending on chosen integration.
 
@@ -537,7 +537,7 @@ For UI friendliness:
 ### Integration tests (optional)
 
 - Headless tests are limited due to winit window requirements.
-- Prefer testing the message passing + rendering pipeline with mocked `FrameSink` and without opening a window.
+- Prefer testing the message passing + rendering pipeline with mocked `PresenterPort` and without opening a window.
 
 ---
 
@@ -557,7 +557,7 @@ For UI friendliness:
 
 - Add `controllers/interactive` with:
   - `RenderRequest` types
-  - `FrameSink` port (accepts `RenderEvent` frames/errors)
+  - `PresenterPort` port (accepts `RenderEvent` frames/errors)
   - worker thread that can render Mandelbrot using existing core actions
 - Wire GUI input → controller → presenter → pixels.
 

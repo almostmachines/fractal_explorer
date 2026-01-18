@@ -4,7 +4,7 @@ use pixels::Pixels;
 use winit::event_loop::EventLoopProxy;
 
 use crate::adapters::pixel_format::copy_rgb_to_rgba;
-use crate::controllers::interactive::ports::frame_sink::FrameSink;
+use crate::controllers::interactive::ports::presenter_port::PresenterPort;
 use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::controllers::interactive::events::render_event::RenderEvent;
 use crate::input::gui::GuiEvent;
@@ -28,8 +28,8 @@ impl PixelsPresenter {
         }
     }
 
-    pub fn frame_sink(&self) -> Arc<dyn FrameSink> {
-        Arc::clone(&self.inner) as Arc<dyn FrameSink>
+    pub fn frame_sink(&self) -> Arc<dyn PresenterPort> {
+        Arc::clone(&self.inner) as Arc<dyn PresenterPort>
     }
 
     #[must_use]
@@ -69,7 +69,7 @@ impl PixelsPresenter {
     }
 }
 
-impl FrameSink for PresenterInner {
+impl PresenterPort for PresenterInner {
     fn submit(&self, event: RenderEvent) {
         *self.render_event.lock().unwrap() = Some(event);
         let _ = self.event_loop_proxy.send_event(GuiEvent::Wake);

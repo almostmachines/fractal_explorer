@@ -37,10 +37,10 @@ The spec preserves the existing hexagonal architecture:
 │  controllers/interactive             │  ← Orchestrates render jobs
 │  Owns worker thread, cancellation    │     Calls core actions
 └──────────────┬───────────────────────┘
-               │ RenderEvent via FrameSink port
+               │ RenderEvent via PresenterPort port
                ▼
 ┌──────────────────────────────────────┐
-│  adapters/present                    │  ← FrameSink impl, stores latest frame
+│  adapters/present                    │  ← PresenterPort impl, stores latest frame
 │  Wakes UI thread                     │     RGB→RGBA conversion
 └──────────────┬───────────────────────┘
                │
@@ -55,7 +55,7 @@ Key constraint: the window surface, `pixels`, and `wgpu` objects must be used fr
 ### Milestone Roadmap
 
 1. **Milestone 1 (this document)** — GUI skeleton: feature-gated build, window, pixels rendering, egui overlay
-2. **Milestone 2** — Controller + ports: `InteractiveController`, `FrameSink`, worker thread, wire to pixels
+2. **Milestone 2** — Controller + ports: `InteractiveController`, `PresenterPort`, worker thread, wire to pixels
 3. **Milestone 3** — Cancellation and coalescing: generation IDs, cooperative cancellation, stale-frame prevention
 4. **Milestone 4** — UX improvements: pan/zoom, render-scale slider, status panel
 5. **Milestone 5** — Extensibility: additional fractals (Julia), additional colour schemes
@@ -132,7 +132,7 @@ This milestone focuses solely on the GUI skeleton. The following are explicitly 
 
 - Fractal rendering (no calls to core fractal algorithms)
 - `InteractiveController` or worker threads
-- `FrameSink` port or presentation adapter
+- `PresenterPort` port or presentation adapter
 - `RenderRequest` / `RenderEvent` types
 - Pan/zoom or other navigation controls
 - Colour scheme or algorithm selection UI

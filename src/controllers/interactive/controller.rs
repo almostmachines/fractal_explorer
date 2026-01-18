@@ -11,7 +11,7 @@ use std::time::Instant;
 use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::controllers::interactive::errors::render_error::RenderError;
 use crate::controllers::interactive::events::render_event::RenderEvent;
-use crate::controllers::interactive::ports::frame_sink::FrameSink;
+use crate::controllers::interactive::ports::presenter_port::PresenterPort;
 use crate::core::actions::generate_fractal::generate_fractal_parallel_rayon::{
     generate_fractal_parallel_rayon_cancelable, GenerateFractalError,
 };
@@ -47,13 +47,13 @@ struct SharedState {
     shutdown: AtomicBool,
 
     /// Output port for delivering rendered frames to the presentation layer.
-    frame_sink: Arc<dyn FrameSink>,
+    frame_sink: Arc<dyn PresenterPort>,
 }
 
 /// Interactive controller for real-time fractal rendering.
 ///
 /// Manages the render lifecycle:
-/// - Accepts a `FrameSink` for output
+/// - Accepts a `PresenterPort` for output
 /// - Processes `RenderRequest` inputs via `submit_request()`
 /// - Coordinates parallel rendering on a background worker thread
 /// - Uses generation IDs to suppress stale frames (soft cancellation)
@@ -69,7 +69,7 @@ struct SharedState {
 /// # Example
 ///
 /// ```ignore
-/// let sink: Arc<dyn FrameSink> = /* ... */;
+/// let sink: Arc<dyn PresenterPort> = /* ... */;
 /// let controller = InteractiveController::new(sink);
 ///
 /// // Submit render requests (returns generation ID)
@@ -91,7 +91,7 @@ impl InteractiveController {
     /// Creates a new interactive controller with the given frame sink.
     ///
     /// Spawns a background worker thread that will process render requests
-    /// and deliver results via the provided `FrameSink`.
+    /// and deliver results via the provided `PresenterPort`.
     ///
     /// # Arguments
     ///
@@ -100,7 +100,7 @@ impl InteractiveController {
     /// # Returns
     ///
     /// A new controller ready to accept render requests via `submit_request()`.
-    pub fn new(frame_sink: Arc<dyn FrameSink>) -> Self {
+    pub fn new(frame_sink: Arc<dyn PresenterPort>) -> Self {
         let shared = Arc::new(SharedState {
             generation: AtomicU64::new(0),
             latest_request: Mutex::new(None),
@@ -355,24 +355,24 @@ mod tests {
     use crate::core::data::point::Point;
 
     #[derive(Default)]
-    struct MockFrameSink {
+    struct MockPresenterPort {
         events: Mutex<Vec<RenderEvent>>,
     }
 
-    impl MockFrameSink {
+    impl MockPresenterPort {
         fn take_events(&self) -> Vec<RenderEvent> {
             let mut guard = self.events.lock().unwrap();
             std::mem::take(&mut *guard)
         }
     }
 
-    impl FrameSink for MockFrameSink {
+    impl PresenterPort for MockPresenterPort {
         fn submit(&self, event: RenderEvent) {
             self.events.lock().unwrap().push(event);
         }
     }
 
-    fn wait_for_events(sink: &MockFrameSink, timeout: Duration) -> Vec<RenderEvent> {
+    fn wait_for_events(sink: &MockPresenterPort, timeout: Duration) -> Vec<RenderEvent> {
         let start = Instant::now();
         loop {
             let events = sink.take_events();
@@ -412,9 +412,9 @@ mod tests {
 
     #[test]
     fn test_submit_request_emits_frame() {
-        let frame_sink = Arc::new(MockFrameSink::default());
+        let frame_sink = Arc::new(MockPresenterPort::default());
         let mut controller =
-            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn FrameSink>);
+            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn PresenterPort>);
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = create_test_request(pixel_rect);
@@ -448,9 +448,9 @@ mod tests {
 
     #[test]
     fn test_generation_ids_increment() {
-        let frame_sink = Arc::new(MockFrameSink::default());
+        let frame_sink = Arc::new(MockPresenterPort::default());
         let mut controller =
-            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn FrameSink>);
+            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn PresenterPort>);
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = create_test_request(pixel_rect);
@@ -550,9 +550,9 @@ mod tests {
     fn test_rapid_requests_do_not_emit_cancellation_errors() {
         // Submit multiple rapid requests; the controller should emit only Frame events
         // (no Error events for cancelled work).
-        let frame_sink = Arc::new(MockFrameSink::default());
+        let frame_sink = Arc::new(MockPresenterPort::default());
         let mut controller =
-            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn FrameSink>);
+            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn PresenterPort>);
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = create_test_request(pixel_rect);
@@ -586,9 +586,9 @@ mod tests {
     #[test]
     fn test_newest_request_yields_emitted_frame() {
         // Submit multiple requests; the final frame should have the highest generation.
-        let frame_sink = Arc::new(MockFrameSink::default());
+        let frame_sink = Arc::new(MockPresenterPort::default());
         let mut controller =
-            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn FrameSink>);
+            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn PresenterPort>);
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = create_test_request(pixel_rect);
@@ -633,9 +633,9 @@ mod tests {
         // This is a conceptual test - when cancellation occurs, no event should be emitted.
         // We verify this by checking that Frame events only contain valid pixel buffers
         // (i.e., no partially rendered or corrupted data).
-        let frame_sink = Arc::new(MockFrameSink::default());
+        let frame_sink = Arc::new(MockPresenterPort::default());
         let mut controller =
-            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn FrameSink>);
+            InteractiveController::new(Arc::clone(&frame_sink) as Arc<dyn PresenterPort>);
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = create_test_request(pixel_rect);

@@ -17,7 +17,7 @@ Milestone 2 introduces the application/controller layer and the output port/pres
 
 ```
 input/gui (adapter)         controllers/interactive            adapters/present
-(winit + egui UI)   ->      (job orchestration)        ->      (FrameSink + pixels bridge)
+(winit + egui UI)   ->      (job orchestration)        ->      (PresenterPort + pixels bridge)
   builds RenderRequest          runs worker thread                 stores latest frame
   triggers renders              calls core actions                 wakes UI thread
 
@@ -29,11 +29,11 @@ Worker thread: computes PixelBuffer only.
 
 1. Add `controllers/interactive`:
    - `RenderRequest` input types (Mandelbrot-only for now)
-   - `FrameSink` output port and `RenderEvent` message types
+   - `PresenterPort` output port and `RenderEvent` message types
    - an `InteractiveController` that renders frames on a worker thread using existing core actions
 
 2. Add a presentation adapter:
-   - `FrameSink` implementation that stores the latest frame/error
+   - `PresenterPort` implementation that stores the latest frame/error
    - a UI-thread helper that copies RGB `PixelBuffer` into the RGBA `pixels` frame
    - a wake mechanism so new frames redraw promptly
 
@@ -101,8 +101,8 @@ Recommended derives for ergonomic change-detection and debugging:
 - `FrameData` (contains at least `generation`, `pixel_rect` and `PixelBuffer`; include render duration)
 - `RenderError` (contains at least `generation`; string message is fine initially)
 - `RenderEvent` enum (`Frame` | `Error`)
-- `FrameSink` trait:
-  - `pub trait FrameSink: Send + Sync { fn submit(&self, event: RenderEvent); }`
+- `PresenterPort` trait:
+  - `pub trait PresenterPort: Send + Sync { fn submit(&self, event: RenderEvent); }`
 
 Notes:
 
@@ -117,7 +117,7 @@ Notes:
 
 **Public API (suggested)**
 
-- `InteractiveController::new(frame_sink: Arc<dyn FrameSink>) -> Self`
+- `InteractiveController::new(frame_sink: Arc<dyn PresenterPort>) -> Self`
 - `InteractiveController::submit_request(&self, request: RenderRequest) -> u64` (returns the request generation)
 - `InteractiveController::shutdown(self)` (or `Drop` joins worker thread)
 
@@ -162,7 +162,7 @@ Validation expectations:
 
 Tune the thread count as needed; the goal is to reserve CPU for the UI thread.
 
-### 3) Add `adapters/present` pixels presenter + `FrameSink` implementation
+### 3) Add `adapters/present` pixels presenter + `PresenterPort` implementation
 
 Milestone 2 needs a bridge from the worker-produced `PixelBuffer` to the UI thread `Pixels` framebuffer.
 
@@ -184,7 +184,7 @@ Module gating detail (to keep `cargo test` without `--features gui` lightweight)
 
 **Presenter responsibilities**
 
-1. Implement `FrameSink`:
+1. Implement `PresenterPort`:
    - store the latest `RenderEvent` in a thread-safe slot (e.g., `Mutex<Option<RenderEvent>>`)
    - store the latest error separately if useful for UI
    - wake the UI/event loop to prompt a redraw
@@ -201,13 +201,13 @@ Module gating detail (to keep `cargo test` without `--features gui` lightweight)
 
 - Switch the GUI `EventLoop` to a user-event type (e.g. `enum GuiEvent { Wake }`).
 - The presenter stores a `winit::event_loop::EventLoopProxy<GuiEvent>`.
-- On `FrameSink::submit`, after storing the latest event:
+- On `PresenterPort::submit`, after storing the latest event:
   - call `proxy.send_event(GuiEvent::Wake)`
   - ignore send failures (e.g., window already closing)
 
 Notes:
 
-- The `FrameSink::submit` implementation must not touch `Pixels`, `wgpu`, or the window surface.
+- The `PresenterPort::submit` implementation must not touch `Pixels`, `wgpu`, or the window surface.
 - UI-thread methods may take `&mut Pixels` and perform the copy.
 
 ### 4) Wire `input/gui` to the controller + presenter
@@ -230,7 +230,7 @@ Notes:
 **4.2 Instantiate presenter + controller during app startup**
 
 - Create a `PixelsPresenter` (or similar) with the proxy.
-- Create an `InteractiveController` with `presenter.frame_sink()` (likely `Arc<dyn FrameSink>`).
+- Create an `InteractiveController` with `presenter.frame_sink()` (likely `Arc<dyn PresenterPort>`).
 - Store both on the `App` struct.
 
 **4.3 Replace placeholder drawing with “present latest frame”**
@@ -297,7 +297,7 @@ Milestone 2 adds concurrency and conversion logic; tests should focus on determi
 
 **Controller tests (no `gui` feature required)**
 
-- A `MockFrameSink` that stores submitted events (e.g., `Mutex<Vec<RenderEvent>>` or a channel).
+- A `MockPresenterPort` that stores submitted events (e.g., `Mutex<Vec<RenderEvent>>` or a channel).
 - Submit a small request:
   - `PixelRect` 2×2 or 4×4
   - classic Mandelbrot region
@@ -357,6 +357,6 @@ For the full architecture and later milestones (cancellation, coalescing, pan/zo
   - resizing the window resizes the pixels surface/buffer and results in a new render at the new resolution.
 - Rendering runs off the UI thread (window remains responsive while renders compute).
 - Stale frames never display: UI ignores any frame/error where `generation != latest_submitted_generation` (controller may also drop stale results).
-- A `FrameSink` port exists under `src/controllers/interactive/ports/` and is used by the controller to deliver `RenderEvent`s.
+- A `PresenterPort` port exists under `src/controllers/interactive/ports/` and is used by the controller to deliver `RenderEvent`s.
 - The presentation adapter stores “latest frame” and safely converts RGB `PixelBuffer` → RGBA `pixels` frame without per-frame allocations.
 - Basic errors (invalid params) surface in the UI (via `RenderEvent::Error`) rather than crashing the app.

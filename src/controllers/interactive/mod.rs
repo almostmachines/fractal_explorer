@@ -7,7 +7,7 @@
 //!
 //! The interactive controller follows the ports & adapters pattern:
 //! - **Input**: `RenderRequest` structs describing what to render
-//! - **Output**: `FrameSink` trait for receiving rendered frames
+//! - **Output**: `PresenterPort` trait for receiving rendered frames
 //! - **Core**: Uses domain actions from `core/` for actual computation
 
 mod controller;
