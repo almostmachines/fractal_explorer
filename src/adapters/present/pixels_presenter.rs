@@ -206,20 +206,10 @@ impl PixelsPresenter {
         let pixel_rect = frame.pixel_buffer.pixel_rect();
         let width = pixel_rect.width();
         let height = pixel_rect.height();
-        let expected_rgb_len = (width * height * 3) as usize;
-        let src = frame.pixel_buffer.buffer();
-        assert_eq!(
-            src.len(),
-            expected_rgb_len,
-            "frame data length {} does not match expected {} for {}x{}",
-            src.len(),
-            expected_rgb_len,
-            width,
-            height
-        );
-
         let expected_rgba_len = (width * height * 4) as usize;
+        let src = frame.pixel_buffer.buffer();
         let dest = self.pixels.frame_mut();
+
         assert_eq!(
             dest.len(),
             expected_rgba_len,
