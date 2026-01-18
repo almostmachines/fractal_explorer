@@ -15,13 +15,13 @@ struct PixelsPresenterPort {
 }
 
 pub struct PixelsPresenter {
-    inner: Arc<PixelsPresenterPort>,
+    presenter_port: Arc<PixelsPresenterPort>,
 }
 
 impl PixelsPresenter {
     pub fn new(event_loop_proxy: EventLoopProxy<GuiEvent>) -> Self {
         Self {
-            inner: Arc::new(PixelsPresenterPort {
+            presenter_port: Arc::new(PixelsPresenterPort {
                 render_event: Mutex::new(None),
                 event_loop_proxy,
             }),
@@ -29,12 +29,12 @@ impl PixelsPresenter {
     }
 
     pub fn share_presenter_port(&self) -> Arc<dyn PresenterPort> {
-        Arc::clone(&self.inner) as Arc<dyn PresenterPort>
+        Arc::clone(&self.presenter_port) as Arc<dyn PresenterPort>
     }
 
     #[must_use]
     pub fn take_render_event(&self) -> Option<RenderEvent> {
-        self.inner.render_event.lock().unwrap().take()
+        self.presenter_port.render_event.lock().unwrap().take()
     }
 
     pub fn copy_pixel_buffer_into_pixels_frame(frame: &FrameData, pixels: &mut Pixels) {
