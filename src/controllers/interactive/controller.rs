@@ -214,7 +214,7 @@ impl InteractiveController {
                         continue;
                     }
 
-                    shared.frame_sink.submit(RenderEvent::Frame(FrameData {
+                    shared.frame_sink.present(RenderEvent::Frame(FrameData {
                         generation: job_generation,
                         pixel_rect: request.pixel_rect,
                         pixel_buffer,
@@ -235,7 +235,7 @@ impl InteractiveController {
 
                     shared
                         .frame_sink
-                        .submit(RenderEvent::Error(RenderError {
+                        .present(RenderEvent::Error(RenderError {
                             generation: job_generation,
                             message,
                         }));
@@ -367,7 +367,7 @@ mod tests {
     }
 
     impl PresenterPort for MockPresenterPort {
-        fn submit(&self, event: RenderEvent) {
+        fn present(&self, event: RenderEvent) {
             self.events.lock().unwrap().push(event);
         }
     }

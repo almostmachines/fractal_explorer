@@ -70,7 +70,7 @@ impl PixelsPresenter {
 }
 
 impl PresenterPort for PresenterInner {
-    fn submit(&self, event: RenderEvent) {
+    fn present(&self, event: RenderEvent) {
         *self.render_event.lock().unwrap() = Some(event);
         let _ = self.event_loop_proxy.send_event(GuiEvent::Wake);
     }
