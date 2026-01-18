@@ -123,7 +123,7 @@ impl App {
 
         let mut drew_frame = false;
         let latest_generation = self.ui_state.latest_submitted_generation;
-        if let Some(event) = self.presenter.take_latest_event() {
+        if let Some(event) = self.presenter.take_render_event() {
             match event {
                 RenderEvent::Frame(frame) => {
                     let pixel_rect = frame.pixel_rect;

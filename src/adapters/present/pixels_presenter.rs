@@ -8,7 +8,7 @@ use crate::controllers::interactive::ports::{FrameMessage, FrameSink, RenderEven
 use crate::input::gui::GuiEvent;
 
 struct PresenterInner {
-    latest_event: Mutex<Option<RenderEvent>>,
+    render_event: Mutex<Option<RenderEvent>>,
     proxy: EventLoopProxy<GuiEvent>,
 }
 
@@ -20,7 +20,7 @@ impl PixelsPresenter {
     pub fn new(proxy: EventLoopProxy<GuiEvent>) -> Self {
         Self {
             inner: Arc::new(PresenterInner {
-                latest_event: Mutex::new(None),
+                render_event: Mutex::new(None),
                 proxy,
             }),
         }
@@ -31,8 +31,8 @@ impl PixelsPresenter {
     }
 
     #[must_use]
-    pub fn take_latest_event(&self) -> Option<RenderEvent> {
-        self.inner.latest_event.lock().unwrap().take()
+    pub fn take_render_event(&self) -> Option<RenderEvent> {
+        self.inner.render_event.lock().unwrap().take()
     }
 
     pub fn copy_pixel_buffer_into_pixels_frame(frame: &FrameMessage, pixels: &mut Pixels) {
@@ -69,7 +69,7 @@ impl PixelsPresenter {
 
 impl FrameSink for PresenterInner {
     fn submit(&self, event: RenderEvent) {
-        *self.latest_event.lock().unwrap() = Some(event);
+        *self.render_event.lock().unwrap() = Some(event);
         let _ = self.proxy.send_event(GuiEvent::Wake);
     }
 }

@@ -190,7 +190,7 @@ Module gating detail (to keep `cargo test` without `--features gui` lightweight)
    - wake the UI/event loop to prompt a redraw
 
 2. UI-thread helper methods:
-   - `take_latest_event()` (drain semantics; “latest wins”)
+   - `take_render_event()` (drain semantics; “latest wins”)
    - `copy_pixel_buffer_into_pixels_frame(pixel_buffer: &PixelBuffer, pixels: &mut Pixels)`
      - converts RGB (3 bytes/pixel) → RGBA8 (4 bytes/pixel, alpha=255)
      - **no allocations**: write directly into `pixels.frame_mut()` using `chunks_exact_mut(4)` zipped with the source `chunks_exact(3)`
