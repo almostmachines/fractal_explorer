@@ -4,8 +4,9 @@ use pixels::Pixels;
 use winit::event_loop::EventLoopProxy;
 
 use crate::adapters::pixel_format::copy_rgb_to_rgba;
-use crate::controllers::interactive::ports::{FrameSink, RenderEvent};
+use crate::controllers::interactive::ports::frame_sink::FrameSink;
 use crate::controllers::interactive::data::frame_data::FrameData;
+use crate::controllers::interactive::events::render_event::RenderEvent;
 use crate::input::gui::GuiEvent;
 
 struct PresenterInner {

@@ -10,6 +10,8 @@ use std::time::Instant;
 
 use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::controllers::interactive::errors::render_error::RenderError;
+use crate::controllers::interactive::events::render_event::RenderEvent;
+use crate::controllers::interactive::ports::frame_sink::FrameSink;
 use crate::core::actions::generate_fractal::generate_fractal_parallel_rayon::{
     generate_fractal_parallel_rayon_cancelable, GenerateFractalError,
 };
@@ -20,7 +22,6 @@ use crate::core::data::pixel_buffer::PixelBuffer;
 use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
 use crate::core::fractals::mandelbrot::colour_maps::blue_white_gradient::MandelbrotBlueWhiteGradient;
 
-use super::ports::{FrameSink, RenderEvent};
 use super::types::{ColourSchemeKind, FractalKind, FractalParams, RenderRequest};
 
 /// Shared state between the controller and its worker thread.

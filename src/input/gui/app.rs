@@ -9,7 +9,8 @@ use pixels::{Pixels, SurfaceTexture, wgpu};
 
 use super::{GuiEvent, UiState};
 use crate::adapters::present::PixelsPresenter;
-use crate::controllers::interactive::{InteractiveController, RenderEvent};
+use crate::controllers::interactive::InteractiveController;
+use crate::controllers::interactive::events::render_event::RenderEvent;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
 use winit::{
