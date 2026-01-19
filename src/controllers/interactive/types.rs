@@ -3,7 +3,6 @@
 //! These types form the API contract between the GUI input adapter
 //! and the interactive controller.
 
-use crate::core::data::complex_rect::ComplexRect;
 use crate::core::data::fractal::Fractal;
 use crate::core::data::pixel_rect::PixelRect;
 
