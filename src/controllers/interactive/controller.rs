@@ -19,11 +19,12 @@ use crate::core::actions::generate_pixel_buffer::generate_pixel_buffer::{
     generate_pixel_buffer_cancelable, GeneratePixelBufferCancelableError,
 };
 use crate::core::data::fractal::Fractal;
+use crate::core::data::fractal_params::FractalParams;
 use crate::core::data::pixel_buffer::PixelBuffer;
 use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
 use crate::core::fractals::mandelbrot::colour_maps::blue_white_gradient::MandelbrotBlueWhiteGradient;
 
-use super::types::{ColourSchemeKind, FractalParams, RenderRequest};
+use super::types::{ColourSchemeKind, RenderRequest};
 
 /// Shared state between the controller and its worker thread.
 ///
@@ -351,6 +352,7 @@ mod tests {
 
     use crate::core::data::complex::Complex;
     use crate::core::data::complex_rect::ComplexRect;
+    use crate::core::data::fractal_params::FractalParams;
     use crate::core::data::pixel_rect::PixelRect;
     use crate::core::data::point::Point;
 

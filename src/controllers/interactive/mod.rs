@@ -18,4 +18,4 @@ pub mod events;
 mod types;
 
 pub use controller::InteractiveController;
-pub use types::{ColourSchemeKind, FractalParams, RenderRequest};
+pub use types::{ColourSchemeKind, RenderRequest};

@@ -1,9 +1,10 @@
 use crate::controllers::interactive::{
-    ColourSchemeKind, FractalParams, RenderRequest,
+    ColourSchemeKind, RenderRequest,
 };
 use crate::core::data::complex::Complex;
 use crate::core::data::complex_rect::ComplexRect;
 use crate::core::data::fractal::Fractal;
+use crate::core::data::fractal_params::FractalParams;
 use crate::core::data::pixel_rect::PixelRect;
 
 const DEFAULT_MAX_ITERATIONS: u32 = 256;

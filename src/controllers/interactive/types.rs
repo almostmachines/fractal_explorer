@@ -4,6 +4,7 @@
 //! and the interactive controller.
 
 use crate::core::data::fractal::Fractal;
+use crate::core::data::fractal_params::FractalParams;
 use crate::core::data::pixel_rect::PixelRect;
 
 /// A render request representing a snapshot of parameters for a single render job.
@@ -20,20 +21,6 @@ pub struct RenderRequest {
     pub params: FractalParams,
     /// Colour mapping to apply to iteration counts.
     pub colour_scheme: ColourSchemeKind,
-}
-
-/// Algorithm-specific parameters for fractal computation.
-///
-/// Each variant contains the fields needed by that specific algorithm.
-#[derive(Debug, Clone, PartialEq)]
-pub enum FractalParams {
-    Mandelbrot {
-        /// View region in the complex plane.
-        region: ComplexRect,
-        /// Maximum iterations before considering a point bounded.
-        max_iterations: u32,
-    },
-    // Future variants for other fractal types...
 }
 
 /// Selects which colour mapping to apply to iteration counts.
