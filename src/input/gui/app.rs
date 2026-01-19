@@ -75,6 +75,7 @@ impl App {
             return;
         }
 
+        // resizing the surface keeps the swapchain in sync with the actual window size, which wgpu/pixels expects on every resize (except size 0). The buffer size is independent and is gated at >=2 because PixelRect and the render path require at least 2×2, so a 1×1 window just reuses the last buffer and scales it.
         self.presenter.resize(width, height);
 
         if width >= 2 && height >= 2 {
