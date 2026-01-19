@@ -22,7 +22,6 @@ struct App {
     ui_state: UiState,
     last_render_duration: Option<Duration>,
     last_error_message: Option<String>,
-    has_frame: bool,
     /// Whether the window is focused. Can be used to reduce render rate when unfocused.
     #[allow(dead_code)]
     focused: bool,
@@ -58,7 +57,6 @@ impl App {
             ui_state: UiState::default(),
             last_render_duration: None,
             last_error_message: None,
-            has_frame: false,
             focused: true,
             egui_ctx,
             egui_state,
@@ -81,7 +79,6 @@ impl App {
 
         if width >= 2 && height >= 2 {
             self.presenter.resize_pixels_buffer(width, height);
-            self.has_frame = false;
         }
     }
 
