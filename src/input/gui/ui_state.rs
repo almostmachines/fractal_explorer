@@ -1,6 +1,5 @@
-use crate::controllers::interactive::{
-    ColourSchemeKind, RenderRequest,
-};
+use crate::controllers::interactive::data::render_request::RenderRequest;
+use crate::controllers::interactive::ColourSchemeKind;
 use crate::core::data::complex::Complex;
 use crate::core::data::complex_rect::ComplexRect;
 use crate::core::data::fractal::Fractal;

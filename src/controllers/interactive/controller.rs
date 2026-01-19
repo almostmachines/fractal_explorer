@@ -9,6 +9,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
 use crate::controllers::interactive::data::frame_data::FrameData;
+use crate::controllers::interactive::data::render_request::RenderRequest;
 use crate::controllers::interactive::errors::render_error::RenderError;
 use crate::controllers::interactive::events::render_event::RenderEvent;
 use crate::controllers::interactive::ports::presenter_port::PresenterPort;
@@ -24,7 +25,7 @@ use crate::core::data::pixel_buffer::PixelBuffer;
 use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
 use crate::core::fractals::mandelbrot::colour_maps::blue_white_gradient::MandelbrotBlueWhiteGradient;
 
-use super::types::{ColourSchemeKind, RenderRequest};
+use super::types::ColourSchemeKind;
 
 /// Shared state between the controller and its worker thread.
 ///
