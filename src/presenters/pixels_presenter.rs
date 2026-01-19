@@ -82,6 +82,7 @@ impl PixelsPresenter {
             match event {
                 RenderEvent::Frame(frame) => {
                     let pixel_rect = frame.pixel_buffer.pixel_rect();
+
                     if frame.generation == requested_generation
                         && pixel_rect.width() == self.width
                         && pixel_rect.height() == self.height
