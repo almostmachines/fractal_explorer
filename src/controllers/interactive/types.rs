@@ -4,6 +4,7 @@
 //! and the interactive controller.
 
 use crate::core::data::complex_rect::ComplexRect;
+use crate::core::data::fractal::Fractal;
 use crate::core::data::pixel_rect::PixelRect;
 
 /// A render request representing a snapshot of parameters for a single render job.
@@ -15,18 +16,11 @@ pub struct RenderRequest {
     /// Target render dimensions in pixels.
     pub pixel_rect: PixelRect,
     /// Which fractal algorithm to use.
-    pub fractal: FractalKind,
+    pub fractal: Fractal,
     /// Algorithm-specific parameters.
     pub params: FractalParams,
     /// Colour mapping to apply to iteration counts.
     pub colour_scheme: ColourSchemeKind,
-}
-
-/// Selects which fractal algorithm to render.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum FractalKind {
-    Mandelbrot,
-    // Future: Julia, BurningShip, etc.
 }
 
 /// Algorithm-specific parameters for fractal computation.

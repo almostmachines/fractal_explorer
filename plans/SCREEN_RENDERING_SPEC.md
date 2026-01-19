@@ -174,7 +174,7 @@ To ensure `cargo build`, `cargo test`, and the existing CLI (`cargo run`) stay f
 
 - Universal settings:
   - `pixel_rect: PixelRect`
-  - `fractal: FractalKind`
+  - `fractal: Fractal`
   - `colour_scheme: ColourSchemeKind`
 - Fractal-specific parameters:
   - `params: FractalParams`
@@ -184,12 +184,12 @@ Proposed types (`src/controllers/interactive/types.rs`):
 ```rust
 pub struct RenderRequest {
     pub pixel_rect: PixelRect,
-    pub fractal: FractalKind,
+    pub fractal: Fractal,
     pub params: FractalParams,
     pub colour_scheme: ColourSchemeKind,
 }
 
-pub enum FractalKind {
+pub enum Fractal {
     Mandelbrot,
     // Julia,
     // BurningShip,
@@ -360,7 +360,7 @@ The GUI input layer:
 `UiState` is split into:
 
 - universal state:
-  - `fractal: FractalKind`
+  - `fractal: Fractal`
   - render scale / resolution settings
   - `colour_scheme: ColourSchemeKind`
 - fractal-specific state (enum with per-fractal structs):

@@ -1,8 +1,9 @@
 use crate::controllers::interactive::{
-    ColourSchemeKind, FractalKind, FractalParams, RenderRequest,
+    ColourSchemeKind, FractalParams, RenderRequest,
 };
 use crate::core::data::complex::Complex;
 use crate::core::data::complex_rect::ComplexRect;
+use crate::core::data::fractal::Fractal;
 use crate::core::data::pixel_rect::PixelRect;
 
 const DEFAULT_MAX_ITERATIONS: u32 = 256;
@@ -50,7 +51,7 @@ impl UiState {
     pub fn build_render_request(&self, pixel_rect: PixelRect) -> RenderRequest {
         RenderRequest {
             pixel_rect,
-            fractal: FractalKind::Mandelbrot,
+            fractal: Fractal::Mandelbrot,
             params: FractalParams::Mandelbrot {
                 region: self.region,
                 max_iterations: self.max_iterations,
@@ -104,7 +105,7 @@ mod tests {
         let request = ui_state.build_render_request(pixel_rect);
 
         assert_eq!(request.pixel_rect, pixel_rect);
-        assert_eq!(request.fractal, FractalKind::Mandelbrot);
+        assert_eq!(request.fractal, Fractal::Mandelbrot);
         assert_eq!(request.colour_scheme, ColourSchemeKind::BlueWhiteGradient);
         match request.params {
             FractalParams::Mandelbrot {

@@ -50,7 +50,7 @@ Worker thread: computes PixelBuffer only.
 
 ### In-scope
 
-- Mandelbrot only (`FractalKind::Mandelbrot`)
+- Mandelbrot only (`Fractal::Mandelbrot`)
 - One colour scheme only (`ColourSchemeKind::BlueWhiteGradient`)
 - Full-frame rendering (no progressive tiles)
 - Background rendering on a dedicated worker thread
@@ -87,7 +87,7 @@ Milestone 2 implements *generation-based supersession* (discarding stale results
 **Types to define (`src/controllers/interactive/types.rs`)**
 
 - `RenderRequest` (immutable “render this frame” input)
-- `FractalKind` (start with `Mandelbrot`)
+- `Fractal` (start with `Mandelbrot`)
 - `FractalParams` (start with `Mandelbrot { region: ComplexRect, max_iterations: u32 }`)
 - `ColourSchemeKind` (start with `BlueWhiteGradient`)
 
@@ -259,7 +259,7 @@ Each redraw (or after UI interaction):
 
 - Compute a candidate `RenderRequest`:
   - `pixel_rect` from current render resolution (initially: window physical size)
-  - `fractal = FractalKind::Mandelbrot`
+  - `fractal = Fractal::Mandelbrot`
   - `params = FractalParams::Mandelbrot { region, max_iterations }`
   - `colour_scheme = ColourSchemeKind::BlueWhiteGradient`
 

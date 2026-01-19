@@ -18,11 +18,12 @@ use crate::core::actions::generate_fractal::generate_fractal_parallel_rayon::{
 use crate::core::actions::generate_pixel_buffer::generate_pixel_buffer::{
     generate_pixel_buffer_cancelable, GeneratePixelBufferCancelableError,
 };
+use crate::core::data::fractal::Fractal;
 use crate::core::data::pixel_buffer::PixelBuffer;
 use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
 use crate::core::fractals::mandelbrot::colour_maps::blue_white_gradient::MandelbrotBlueWhiteGradient;
 
-use super::types::{ColourSchemeKind, FractalKind, FractalParams, RenderRequest};
+use super::types::{ColourSchemeKind, FractalParams, RenderRequest};
 
 /// Shared state between the controller and its worker thread.
 ///
@@ -265,7 +266,7 @@ impl InteractiveController {
         // Dispatch based on fractal type
         match (&request.fractal, &request.params) {
             (
-                FractalKind::Mandelbrot,
+                Fractal::Mandelbrot,
                 FractalParams::Mandelbrot {
                     region,
                     max_iterations,
@@ -400,7 +401,7 @@ mod tests {
 
         RenderRequest {
             pixel_rect,
-            fractal: FractalKind::Mandelbrot,
+            fractal: Fractal::Mandelbrot,
             params: FractalParams::Mandelbrot {
                 region,
                 max_iterations: 10,
