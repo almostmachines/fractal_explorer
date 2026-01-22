@@ -7,6 +7,7 @@ use crate::presenters::PixelsPresenter;
 use crate::controllers::interactive::InteractiveController;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
+use crate::core::fractals::mandelbrot::colour_map::MandelbrotColourMapKind;
 use winit::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
@@ -133,6 +134,21 @@ impl App {
                             &mut self.ui_state.max_iterations,
                             1..=1000,
                         ));
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Colour map:");
+                        egui::ComboBox::from_id_source("mandelbrot_colour_map")
+                            .selected_text(self.ui_state.colour_map_kind.display_name())
+                            .show_ui(ui, |ui| {
+                                for &kind in MandelbrotColourMapKind::ALL {
+                                    ui.selectable_value(
+                                        &mut self.ui_state.colour_map_kind,
+                                        kind,
+                                        kind.display_name(),
+                                    );
+                                }
+                            });
                     });
 
                     ui.separator();

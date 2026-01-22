@@ -90,7 +90,7 @@ impl ColourMap<u32> for MandelbrotFireGradient {
     }
 
     fn display_name(&self) -> &str {
-        "Fire gradient"
+        self.kind().display_name()
     }
 }
 

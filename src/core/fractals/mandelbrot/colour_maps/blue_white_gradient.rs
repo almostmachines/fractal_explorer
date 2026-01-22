@@ -61,7 +61,7 @@ impl ColourMap<u32> for MandelbrotBlueWhiteGradient {
     }
 
     fn display_name(&self) -> &str {
-        "Blue-white gradient"
+        self.kind().display_name()
     }
 }
 

@@ -4,7 +4,8 @@ use crate::core::data::complex::Complex;
 use crate::core::data::complex_rect::ComplexRect;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
-use crate::core::fractals::mandelbrot::colour_maps::fire_gradient::MandelbrotFireGradient;
+use crate::core::fractals::mandelbrot::colour_map::MandelbrotColourMapKind;
+use crate::core::fractals::mandelbrot::colour_maps::build_mandelbrot_colour_map;
 
 const DEFAULT_MAX_ITERATIONS: u32 = 256;
 
@@ -25,6 +26,7 @@ fn default_region() -> ComplexRect {
 pub struct UiState {
     pub region: ComplexRect,
     pub max_iterations: u32,
+    pub colour_map_kind: MandelbrotColourMapKind,
     last_submitted_request: Option<Arc<FractalConfig>>,
     pub latest_submitted_generation: u64,
 }
@@ -34,6 +36,7 @@ impl Default for UiState {
         Self {
             region: default_region(),
             max_iterations: DEFAULT_MAX_ITERATIONS,
+            colour_map_kind: MandelbrotColourMapKind::default(),
             last_submitted_request: None,
             latest_submitted_generation: 0,
         }
@@ -43,7 +46,7 @@ impl Default for UiState {
 impl UiState {
     #[must_use]
     pub fn build_render_request(&self, pixel_rect: PixelRect) -> FractalConfig {
-        let colour_map = Box::new(MandelbrotFireGradient::new(self.max_iterations));
+        let colour_map = build_mandelbrot_colour_map(self.colour_map_kind, self.max_iterations);
         let algorithm = MandelbrotAlgorithm::new(pixel_rect, self.region, self.max_iterations).unwrap();
 
         FractalConfig::Mandelbrot { colour_map, algorithm }
@@ -83,50 +86,22 @@ mod tests {
         .unwrap()
     }
 
-    // #[test]
-    // fn test_build_render_request_uses_ui_state() {
-    //     let ui_state = UiState::default();
-    //     let pixel_rect = create_pixel_rect(2, 2);
-    //
-    //     let request = ui_state.build_render_request(pixel_rect);
-    //
-    //     assert_eq!(request.pixel_rect, pixel_rect);
-    //     assert_eq!(request.fractal, Fractal::Mandelbrot);
-    //     assert_eq!(request.colour_scheme, ColourSchemeKind::BlueWhiteGradient);
-    //     match request.params {
-    //         FractalParams::Mandelbrot {
-    //             region,
-    //             max_iterations,
-    //         } => {
-    //             assert_eq!(region, ui_state.region);
-    //             assert_eq!(max_iterations, ui_state.max_iterations);
-    //         }
-    //     }
-    // }
+    #[test]
+    fn changing_colour_map_kind_triggers_should_submit() {
+        let mut ui_state = UiState::default();
+        let pixel_rect = create_pixel_rect(100, 100);
 
-    // #[test]
-    // fn test_should_submit_detects_changes() {
-    //     let mut ui_state = UiState::default();
-    //     let pixel_rect = create_pixel_rect(2, 2);
-    //     let request = ui_state.build_render_request(pixel_rect);
-    //
-    //     assert!(ui_state.should_submit(&request));
-    //     ui_state.record_submission(Arc::new(request.clone()), 1);
-    //     assert!(!ui_state.should_submit(&request));
-    //
-    //     ui_state.max_iterations += 1;
-    //     let updated_request = ui_state.build_render_request(pixel_rect);
-    //     assert!(ui_state.should_submit(&updated_request));
-    // }
-    //
-    // #[test]
-    // fn test_record_submission_updates_generation() {
-    //     let mut ui_state = UiState::default();
-    //     let pixel_rect = create_pixel_rect(2, 2);
-    //     let request = ui_state.build_render_request(pixel_rect);
-    //
-    //     ui_state.record_submission(Arc::new(request), 42);
-    //
-    //     assert_eq!(ui_state.latest_submitted_generation, 42);
-    // }
+        // Submit initial request
+        let request1 = ui_state.build_render_request(pixel_rect);
+        ui_state.record_submission(Arc::new(request1), 1);
+
+        // Same state should not need re-submission
+        let same_request = ui_state.build_render_request(pixel_rect);
+        assert!(!ui_state.should_submit(&same_request));
+
+        // Change only colour_map_kind
+        ui_state.colour_map_kind = MandelbrotColourMapKind::BlueWhiteGradient;
+        let changed_request = ui_state.build_render_request(pixel_rect);
+        assert!(ui_state.should_submit(&changed_request));
+    }
 }
