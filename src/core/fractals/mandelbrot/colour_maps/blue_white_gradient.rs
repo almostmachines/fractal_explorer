@@ -48,10 +48,7 @@ impl ColourMap<u32> for MandelbrotBlueWhiteGradient {
         if iterations == self.max_iterations {
             Ok(Colour { r: 0, g: 0, b: 0 })
         } else {
-            // Simple approach: use iteration count to create a gradient
             let t = iterations as f64 / self.max_iterations as f64;
-
-            // A nice blue-to-white gradient
             let r = (9.0 * (1.0 - t) * t * t * t * 255.0) as u8;
             let g = (15.0 * (1.0 - t) * (1.0 - t) * t * t * 255.0) as u8;
             let b = (8.5 * (1.0 - t) * (1.0 - t) * (1.0 - t) * t * 255.0) as u8;
