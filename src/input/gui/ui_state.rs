@@ -5,7 +5,7 @@ use crate::core::data::complex_rect::ComplexRect;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
 use crate::core::fractals::mandelbrot::colour_map::MandelbrotColourMapKind;
-use crate::core::fractals::mandelbrot::colour_maps::build_mandelbrot_colour_map;
+use crate::core::fractals::mandelbrot::colour_maps::factory::mandelbrot_colour_map_factory;
 
 const DEFAULT_MAX_ITERATIONS: u32 = 256;
 
@@ -46,7 +46,7 @@ impl Default for UiState {
 impl UiState {
     #[must_use]
     pub fn build_render_request(&self, pixel_rect: PixelRect) -> FractalConfig {
-        let colour_map = build_mandelbrot_colour_map(self.colour_map_kind, self.max_iterations);
+        let colour_map = mandelbrot_colour_map_factory(self.colour_map_kind, self.max_iterations);
         let algorithm = MandelbrotAlgorithm::new(pixel_rect, self.region, self.max_iterations).unwrap();
 
         FractalConfig::Mandelbrot { colour_map, algorithm }

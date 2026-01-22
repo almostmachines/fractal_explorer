@@ -114,7 +114,7 @@ use self::fire_gradient::MandelbrotFireGradient;
 use super::colour_map::{MandelbrotColourMap, MandelbrotColourMapKind};
 
 #[must_use]
-pub fn build_mandelbrot_colour_map(
+pub fn mandelbrot_colour_map_factory(
     kind: MandelbrotColourMapKind,
     max_iterations: u32,
 ) -> Box<dyn MandelbrotColourMap> {
@@ -138,7 +138,7 @@ Rationale:
 
 Export/import note (the "Plan 2" pitfall to avoid):
 
-- Ensure `build_mandelbrot_colour_map` is `pub` and reachable from GUI module paths.
+- Ensure `mandelbrot_colour_map_factory` is `pub` and reachable from GUI module paths.
   Prefer using direct module paths (consistent with current repo style) rather than adding
   new `pub use` re-exports unless you hit an actual import ergonomics problem.
 
@@ -147,7 +147,7 @@ Export/import note (the "Plan 2" pitfall to avoid):
 Update `UiState::build_render_request()` in `src/input/gui/ui_state.rs`:
 
 - Replace the hardcoded `MandelbrotFireGradient::new(...)` with:
-  `build_mandelbrot_colour_map(self.colour_map_kind, self.max_iterations)`.
+  `mandelbrot_colour_map_factory(self.colour_map_kind, self.max_iterations)`.
 
 This ensures:
 
@@ -242,7 +242,7 @@ kill $GUI_PID
 | File | Change |
 |------|--------|
 | `src/core/fractals/mandelbrot/colour_map.rs` | Add `MandelbrotColourMapKind::ALL`, `display_name()`, and `Default`/`Display` impls |
-| `src/core/fractals/mandelbrot/colour_maps/mod.rs` | Add `build_mandelbrot_colour_map()` factory + tests |
+| `src/core/fractals/mandelbrot/colour_maps/mod.rs` | Add `mandelbrot_colour_map_factory()` factory + tests |
 | `src/core/fractals/mandelbrot/colour_maps/fire_gradient.rs` | Delegate `display_name()` to `self.kind().display_name()` |
 | `src/core/fractals/mandelbrot/colour_maps/blue_white_gradient.rs` | Delegate `display_name()` to `self.kind().display_name()` |
 | `src/input/gui/ui_state.rs` | Add `colour_map_kind` to `UiState`, default it via `MandelbrotColourMapKind::default()`, use factory in `build_render_request()`, add tests |
