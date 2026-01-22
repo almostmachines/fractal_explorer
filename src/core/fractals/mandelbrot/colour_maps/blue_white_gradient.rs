@@ -1,45 +1,18 @@
 use crate::core::actions::generate_pixel_buffer::ports::colour_map::ColourMap;
 use crate::core::data::colour::Colour;
 use crate::core::fractals::mandelbrot::colour_map::{MandelbrotColourMap, MandelbrotColourMapKind};
+use crate::core::fractals::mandelbrot::colour_maps::errors::MandelbrotColourMapErrors;
 use std::error::Error;
-use std::fmt;
 
 #[derive(Debug)]
 pub struct MandelbrotBlueWhiteGradient {
     max_iterations: u32,
 }
 
-#[derive(Debug)]
-pub enum MandelbrotGradientError {
-    IterationsExceedMax {
-        iterations: u32,
-        max_iterations: u32,
-    },
-}
-
-impl fmt::Display for MandelbrotGradientError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::IterationsExceedMax {
-                iterations,
-                max_iterations,
-            } => {
-                write!(
-                    f,
-                    "iterations {} exceeds maximum {}",
-                    iterations, max_iterations
-                )
-            }
-        }
-    }
-}
-
-impl Error for MandelbrotGradientError {}
-
 impl ColourMap<u32> for MandelbrotBlueWhiteGradient {
     fn map(&self, iterations: u32) -> Result<Colour, Box<dyn Error>> {
         if iterations > self.max_iterations {
-            return Err(Box::new(MandelbrotGradientError::IterationsExceedMax {
+            return Err(Box::new(MandelbrotColourMapErrors::IterationsExceedMax {
                 iterations,
                 max_iterations: self.max_iterations,
             }));
@@ -126,7 +99,7 @@ mod tests {
     //
     //     assert!(matches!(
     //         result,
-    //         Err(MandelbrotGradientError::IterationsExceedMax {
+    //         Err(MandelbrotColourMapErrors::IterationsExceedMax {
     //             iterations: 101,
     //             max_iterations: 100
     //         })

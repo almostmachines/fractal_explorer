@@ -1,5 +1,6 @@
 pub mod blue_white_gradient;
 pub mod fire_gradient;
+pub mod errors;
 
 use self::blue_white_gradient::MandelbrotBlueWhiteGradient;
 use self::fire_gradient::MandelbrotFireGradient;
