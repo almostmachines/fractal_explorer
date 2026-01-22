@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 use egui::Context;
 use egui_winit::State as EguiWinitState;
@@ -108,7 +109,8 @@ impl App {
 
         let request = self.ui_state.build_render_request(pixel_rect);
         if self.ui_state.should_submit(&request) {
-            let generation = self.controller.submit_request(request.clone());
+            let request = Arc::new(request);
+            let generation = self.controller.submit_request(Arc::clone(&request));
             self.ui_state.record_submission(request, generation);
             self.last_error_message = None;
         }

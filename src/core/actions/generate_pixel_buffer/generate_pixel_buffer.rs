@@ -8,9 +8,9 @@ use crate::core::data::pixel_rect::PixelRect;
 use std::error::Error;
 use std::fmt;
 
-#[derive(Debug, PartialEq)]
-pub enum GeneratePixelBufferError<ColourMapError: Error> {
-    ColourMap(ColourMapError),
+#[derive(Debug)]
+pub enum GeneratePixelBufferError {
+    ColourMap(Box<dyn Error>),
     PixelBuffer(PixelBufferError),
 }
 
@@ -19,16 +19,16 @@ pub enum GeneratePixelBufferError<ColourMapError: Error> {
 /// Distinguishes between processing errors and cancellation, allowing callers
 /// to handle each case appropriately.
 #[derive(Debug)]
-pub enum GeneratePixelBufferCancelableError<ColourMapError: Error> {
+pub enum GeneratePixelBufferCancelableError {
     /// The operation was cancelled before completion.
     Cancelled(Cancelled),
     /// A colour mapping error occurred.
-    ColourMap(ColourMapError),
+    ColourMap(Box<dyn Error>),
     /// A pixel buffer construction error occurred.
     PixelBuffer(PixelBufferError),
 }
 
-impl<ColourMapError: Error> fmt::Display for GeneratePixelBufferCancelableError<ColourMapError> {
+impl fmt::Display for GeneratePixelBufferCancelableError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Cancelled(c) => write!(f, "{}", c),
@@ -38,17 +38,17 @@ impl<ColourMapError: Error> fmt::Display for GeneratePixelBufferCancelableError<
     }
 }
 
-impl<ColourMapError: Error + 'static> Error for GeneratePixelBufferCancelableError<ColourMapError> {
+impl Error for GeneratePixelBufferCancelableError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Cancelled(c) => Some(c),
-            Self::ColourMap(err) => Some(err),
+            Self::ColourMap(err) => err.source(),
             Self::PixelBuffer(err) => Some(err),
         }
     }
 }
 
-impl<ColourMapError: Error> fmt::Display for GeneratePixelBufferError<ColourMapError> {
+impl fmt::Display for GeneratePixelBufferError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ColourMap(err) => write!(f, "colour map error: {}", err),
@@ -57,16 +57,16 @@ impl<ColourMapError: Error> fmt::Display for GeneratePixelBufferError<ColourMapE
     }
 }
 
-impl<ColourMapError: Error + 'static> Error for GeneratePixelBufferError<ColourMapError> {
+impl Error for GeneratePixelBufferError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::ColourMap(err) => Some(err),
+            Self::ColourMap(err) => err.source(),
             Self::PixelBuffer(err) => Some(err),
         }
     }
 }
 
-impl<ColourMapError: Error> From<PixelBufferError> for GeneratePixelBufferError<ColourMapError> {
+impl From<PixelBufferError> for GeneratePixelBufferError {
     fn from(err: PixelBufferError) -> Self {
         Self::PixelBuffer(err)
     }
@@ -75,11 +75,11 @@ impl<ColourMapError: Error> From<PixelBufferError> for GeneratePixelBufferError<
 /// Generates a pixel buffer by mapping input values to colours.
 ///
 /// For cancel-aware generation, use [`generate_pixel_buffer_cancelable`].
-pub fn generate_pixel_buffer<CMap: ColourMap>(
-    input: Vec<CMap::T>,
+pub fn generate_pixel_buffer<T, CMap: ColourMap<T>>(
+    input: Vec<T>,
     mapper: &CMap,
     pixel_rect: PixelRect,
-) -> Result<PixelBuffer, GeneratePixelBufferError<CMap::Failure>> {
+) -> Result<PixelBuffer, GeneratePixelBufferError> {
     // Delegate to the cancel-aware implementation with NeverCancel
     generate_pixel_buffer_cancelable_impl(input, mapper, pixel_rect, &NeverCancel).map_err(|e| {
         match e {
@@ -107,14 +107,14 @@ pub fn generate_pixel_buffer<CMap: ColourMap>(
 /// was requested, which should be handled as expected control flow (not an
 /// error to display).
 #[allow(dead_code)]
-pub fn generate_pixel_buffer_cancelable<CMap, C>(
-    input: Vec<CMap::T>,
+pub fn generate_pixel_buffer_cancelable<T, CMap, C>(
+    input: Vec<T>,
     mapper: &CMap,
     pixel_rect: PixelRect,
     cancel: &C,
-) -> Result<PixelBuffer, GeneratePixelBufferCancelableError<CMap::Failure>>
+) -> Result<PixelBuffer, GeneratePixelBufferCancelableError>
 where
-    CMap: ColourMap,
+    CMap: ColourMap<T>,
     C: CancelToken,
 {
     generate_pixel_buffer_cancelable_impl(input, mapper, pixel_rect, cancel)
@@ -129,14 +129,14 @@ where
 /// Preallocates the buffer to `pixel_rect.size() * 3` bytes to avoid
 /// intermediate allocations and reduce wasted work on cancellation.
 #[allow(dead_code)]
-pub(crate) fn generate_pixel_buffer_cancelable_impl<CMap, C>(
-    input: Vec<CMap::T>,
+pub(crate) fn generate_pixel_buffer_cancelable_impl<T, CMap, C>(
+    input: Vec<T>,
     mapper: &CMap,
     pixel_rect: PixelRect,
     cancel: &C,
-) -> Result<PixelBuffer, GeneratePixelBufferCancelableError<CMap::Failure>>
+) -> Result<PixelBuffer, GeneratePixelBufferCancelableError>
 where
-    CMap: ColourMap,
+    CMap: ColourMap<T>,
     C: CancelToken,
 {
     let buffer_size = (pixel_rect.size() * 3) as usize;
@@ -171,42 +171,33 @@ mod tests {
     use crate::core::data::point::Point;
     use std::sync::atomic::{AtomicBool, Ordering};
 
-    #[derive(Debug, PartialEq)]
-    struct StubColourMapError {}
-
-    impl std::fmt::Display for StubColourMapError {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "StubColourMapError")
-        }
-    }
-
-    impl Error for StubColourMapError {}
-
     #[derive(Debug)]
     struct StubColourMapSuccess {}
 
-    impl ColourMap for StubColourMapSuccess {
-        type T = u8;
-        type Failure = StubColourMapError;
-
-        fn map(&self, value: Self::T) -> Result<Colour, Self::Failure> {
+    impl ColourMap<u8> for StubColourMapSuccess {
+        fn map(&self, value: u8) -> Result<Colour, Box<dyn Error>> {
             Ok(Colour {
                 r: value,
                 g: value,
                 b: value,
             })
         }
+
+        fn display_name(&self) -> &str {
+            "Stub Success"
+        }
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug)]
     struct StubColourMapFailure {}
 
-    impl ColourMap for StubColourMapFailure {
-        type T = u8;
-        type Failure = StubColourMapError;
+    impl ColourMap<u8> for StubColourMapFailure {
+        fn map(&self, _: u8) -> Result<Colour, Box<dyn Error>> {
+            Err("StubColourMapError".into())
+        }
 
-        fn map(&self, _: Self::T) -> Result<Colour, Self::Failure> {
-            Err(StubColourMapError {})
+        fn display_name(&self) -> &str {
+            "Stub Failure"
         }
     }
 
@@ -232,10 +223,7 @@ mod tests {
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 2 }).unwrap();
         let results = generate_pixel_buffer(input, &mapper, pixel_rect);
 
-        assert!(matches!(
-            results,
-            Err(GeneratePixelBufferError::ColourMap(StubColourMapError {}))
-        ));
+        assert!(matches!(results, Err(GeneratePixelBufferError::ColourMap(_))));
     }
 
     #[test]
@@ -310,15 +298,14 @@ mod tests {
 
     #[test]
     fn test_cancelable_error_displays_cancelled() {
-        let err: GeneratePixelBufferCancelableError<StubColourMapError> =
-            GeneratePixelBufferCancelableError::Cancelled(Cancelled);
+        let err = GeneratePixelBufferCancelableError::Cancelled(Cancelled);
         assert_eq!(format!("{}", err), "operation cancelled");
     }
 
     #[test]
     fn test_cancelable_error_displays_colour_map_error() {
-        let err: GeneratePixelBufferCancelableError<StubColourMapError> =
-            GeneratePixelBufferCancelableError::ColourMap(StubColourMapError {});
+        let err =
+            GeneratePixelBufferCancelableError::ColourMap("StubColourMapError".into());
         assert_eq!(format!("{}", err), "colour map error: StubColourMapError");
     }
 

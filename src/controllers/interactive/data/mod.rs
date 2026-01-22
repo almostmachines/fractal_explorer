@@ -1,2 +1,2 @@
 pub mod frame_data;
-pub mod render_request;
+pub mod fractal_config;

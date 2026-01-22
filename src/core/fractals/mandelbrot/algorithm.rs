@@ -3,36 +3,18 @@ use crate::core::data::complex::Complex;
 use crate::core::data::complex_rect::ComplexRect;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
+use crate::core::fractals::mandelbrot::errors::MandelbrotError;
 use crate::core::util::pixel_to_complex_coords::{
     PixelToComplexCoordsError, pixel_to_complex_coords,
 };
-use std::error::Error;
-use std::fmt;
 use std::ops::ControlFlow;
 
 #[derive(Debug, PartialEq)]
 pub struct MandelbrotAlgorithm {
-    pixel_rect: PixelRect,
+    pub pixel_rect: PixelRect,
     complex_rect: ComplexRect,
     max_iterations: u32,
 }
-
-#[derive(Debug, PartialEq)]
-pub enum MandelbrotAlgorithmConstructorError {
-    ZeroMaxIterationsError,
-}
-
-impl fmt::Display for MandelbrotAlgorithmConstructorError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::ZeroMaxIterationsError => {
-                write!(f, "Maximum iterations must be greater than zero")
-            }
-        }
-    }
-}
-
-impl Error for MandelbrotAlgorithmConstructorError {}
 
 impl FractalAlgorithm for MandelbrotAlgorithm {
     type Success = u32;
@@ -65,9 +47,9 @@ impl MandelbrotAlgorithm {
         pixel_rect: PixelRect,
         complex_rect: ComplexRect,
         max_iterations: u32,
-    ) -> Result<Self, MandelbrotAlgorithmConstructorError> {
+    ) -> Result<Self, MandelbrotError> {
         if max_iterations == 0 {
-            return Err(MandelbrotAlgorithmConstructorError::ZeroMaxIterationsError);
+            return Err(MandelbrotError::ZeroMaxIterationsError);
         }
 
         Ok(Self {
@@ -128,7 +110,7 @@ mod tests {
 
         assert_eq!(
             algorithm,
-            Err(MandelbrotAlgorithmConstructorError::ZeroMaxIterationsError {})
+            Err(MandelbrotError::ZeroMaxIterationsError {})
         );
     }
 
