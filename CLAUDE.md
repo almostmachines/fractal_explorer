@@ -13,54 +13,11 @@ cargo test <test_name>   # Run specific test
 cargo run                # Generate fractal to output/mandelbrot.ppm
 ```
 
-## Architecture Overview
-
-This is a Mandelbrot set renderer that generates PPM images. The architecture uses a ports & adapters pattern with trait-based abstractions.
-
-### Data Flow Pipeline
-
+**GUI (requires `gui` feature):**
+```bash
+cargo run --release --features gui --bin gui  # Launch interactive GUI
+cargo build --features gui                    # Build with GUI support
 ```
-mandelbrot_controller (src/controllers/mandelbrot.rs)
-  │
-  ├─► generate_fractal_parallel_rayon() → Vec<u32> iteration counts
-  │     Uses FractalAlgorithm trait (MandelbrotAlgorithm impl)
-  │
-  ├─► generate_pixel_buffer() → PixelBuffer RGB data
-  │     Uses ColourMap trait (BlueWhiteGradient impl)
-  │
-  └─► write_ppm() → output/mandelbrot.ppm
-```
-
-### Key Traits (Ports)
-
-- **FractalAlgorithm** (`src/core/actions/generate_fractal/ports/`): Defines fractal computation interface. Implement to add new fractal types.
-- **ColourMap** (`src/core/actions/generate_pixel_buffer/ports/`): Defines colour mapping interface. Implement to add new colour schemes.
-
-### Module Structure
-
-- `controllers/` - Orchestration logic
-- `core/data/` - Data types: Complex, Point, Colour, PixelRect, ComplexRect, PixelBuffer
-- `core/fractals/mandelbrot/` - Mandelbrot algorithm and colour maps
-- `core/actions/generate_fractal/` - Three parallel + one serial fractal generation implementations
-- `core/actions/generate_pixel_buffer/` - Iteration count to RGB conversion
-- `core/util/` - Coordinate conversion utilities
-- `storage/` - PPM file output
-
-### Parallel Implementations
-
-Three parallel strategies exist in `src/core/actions/generate_fractal/`:
-- `generate_fractal_parallel_rayon.rs` - **Current default**, uses Rayon work-stealing
-- `generate_fractal_parallel_scoped_threads.rs` - Uses `thread::scope()`
-- `generate_fractal_parallel_arc.rs` - Uses `Arc<T>` with manual thread management
-
-All produce identical results (verified by tests). Non-default implementations are marked with `#[allow(dead_code)]`.
-
-### Current Configuration
-
-Hardcoded in `mandelbrot_controller()`:
-- Image: 800x600 pixels
-- Complex plane: real [-2.5, 1.0], imaginary [-1.0, 1.0]
-- Max iterations: 256
 
 ## Task Tracking and Management
 
@@ -145,3 +102,53 @@ kill $GUI_PID
 - Snapshot-based, not real-time
 - Cannot interact with GUI (clicking, dragging)
 - May need timing adjustments for slower renders
+
+## Project
+
+A Rust-based Mandelbrot fractal renderer with both CLI and interactive GUI capabilities. Features parallel rendering, multiple colour maps, and real-time exploration.
+
+## Architecture
+
+The codebase follows **hexagonal architecture** (ports & adapters). See `ARCHITECTURE.md` for full details.
+
+### Layer Overview
+
+```
+src/
+├── core/           # Pure domain logic (no external deps)
+│   ├── data/       # Complex, PixelBuffer, Colour, rects
+│   ├── fractals/   # Mandelbrot algorithm + colour maps
+│   └── actions/    # Use cases: generate_fractal, generate_pixel_buffer
+├── controllers/    # Application orchestration
+│   ├── mandelbrot.rs        # CLI (synchronous)
+│   └── interactive/         # GUI (async with worker thread)
+├── input/gui/      # winit + egui event handling
+├── presenters/     # wgpu framebuffer rendering
+└── storage/        # PPM file output
+```
+
+### Key Ports (Traits)
+
+- **`FractalAlgorithm`**: Computes iteration count per pixel
+- **`ColourMap<T>`**: Maps iteration counts to RGB colours
+- **`CancelToken`**: Cooperative cancellation (checked every 1024 pixels)
+- **`PresenterPort`**: Receives rendered frames for display
+
+### Rendering Pipeline
+
+```
+PixelRect + Algorithm → Vec<u32> iterations → PixelBuffer RGB → Output
+```
+
+### Adding a New Colour Map
+
+1. Add variant to `MandelbrotColourMapKinds` in `core/fractals/mandelbrot/colour_mapping/kinds.rs`
+2. Create implementation in `core/fractals/mandelbrot/colour_mapping/maps/`
+3. Register in `mandelbrot_colour_map_factory()` in `factory.rs`
+
+### GUI Threading Model
+
+- Main thread: UI rendering (egui/winit)
+- Worker thread: Fractal computation
+- Generation IDs track request versions; stale results are discarded
+- Request coalescing: new requests replace pending ones

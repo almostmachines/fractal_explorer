@@ -1,110 +1,92 @@
 # Fractal Explorer
 
-A Mandelbrot set renderer written in Rust that generates PPM images. Features one serial and multiple parallel computation strategies and a clean ports & adapters architecture for easy extension.
+A Rust-based Mandelbrot fractal renderer with both CLI and interactive GUI capabilities. Features parallel rendering, multiple colour maps, and real-time exploration.
 
 ## Features
 
-- Mandelbrot set fractal generation
-- Multiple parallelization strategies (Rayon, scoped threads, Arc-based)
-- Blue-white gradient colour mapping
-- PPM image output
-- Trait-based architecture for adding new fractals and colour schemes
+- **Mandelbrot Set Rendering** - Classic fractal generation with configurable iterations
+- **Multiple Colour Maps** - Fire gradient (red to white) and blue-white gradient
+- **Parallel Processing** - Work-stealing parallelism via Rayon for fast rendering
+- **Interactive GUI** - Change fractal parameters and colour maps in real-time
+- **PPM Output** - Simple, portable image format for CLI renders
 
-## Requirements
-
-- Rust 2024 edition
-- Rayon 1.10
-
-## Building and Running
+## Quick Start
 
 ```bash
-# Debug build
-cargo build
-
-# Optimized build
-cargo build --release
-
-# Generate fractal image
-cargo run
-
-# Run with release optimizations
+# Generate a fractal image (CLI)
 cargo run --release
+
+# Launch the interactive GUI
+cargo run --release --features gui --bin gui
 ```
 
-The program outputs a Mandelbrot set image to `output/mandelbrot.ppm`.
+The CLI outputs to `output/mandelbrot.ppm`. You can view PPM files with most image viewers or convert them using ImageMagick:
 
-## Output
-
-Default configuration:
-- Image size: 800x600 pixels
-- Complex plane: real [-2.5, 1.0], imaginary [-1.0, 1.0]
-- Max iterations: 256
-- Colour scheme: Blue-white gradient
-
-## Architecture
-
-The project uses a ports & adapters pattern with trait-based abstractions.
-
-### Data Flow
-
-```
-mandelbrot_controller
-    │
-    ├─► generate_fractal_parallel_rayon() → Vec<u32> iteration counts
-    │     Uses FractalAlgorithm trait
-    │
-    ├─► generate_pixel_buffer() → PixelBuffer RGB data
-    │     Uses ColourMap trait
-    │
-    └─► write_ppm() → output/mandelbrot.ppm
+```bash
+convert output/mandelbrot.ppm output/mandelbrot.png
 ```
 
-### Module Structure
+## Build Commands
+
+```bash
+cargo build              # Debug build
+cargo build --release    # Optimized build
+cargo test               # Run all tests
+cargo run                # Generate fractal (CLI)
+cargo run --features gui --bin gui  # Interactive GUI
+```
+
+## GUI Controls
+
+The interactive GUI provides:
+
+- **Iterations Slider** - Adjust detail level (1-1000)
+- **Colour Map Selection** - Switch between colour schemes
+- **Reset View** - Return to default view
+- **Render Timing** - See how long each frame takes
+
+## Project Structure
 
 ```
 src/
-├── main.rs                 # Entry point
-├── lib.rs                  # Library exports
-├── controllers/            # Orchestration logic
+├── main.rs                 # CLI entry point
+├── bin/gui.rs              # GUI entry point
 ├── core/
-│   ├── data/               # Data types (Complex, Point, Colour, etc.)
-│   ├── fractals/           # Fractal algorithms and colour maps
-│   ├── actions/            # Fractal generation and pixel buffer creation
-│   └── util/               # Coordinate conversion utilities
+│   ├── data/               # Complex numbers, pixel buffers, colours
+│   ├── fractals/mandelbrot/
+│   │   ├── algorithm.rs    # Mandelbrot iteration
+│   │   └── colour_mapping/ # Colour map implementations
+│   └── actions/            # Fractal generation (serial & parallel)
+├── controllers/            # Application orchestration
+├── input/gui/              # GUI input handling (winit + egui)
 └── storage/                # PPM file output
 ```
 
-### Key Traits
+## Technical Details
 
-- **FractalAlgorithm**: Implement to add new fractal types
-- **ColourMap**: Implement to add new colour schemes
+### Rendering
 
-## Extending
+Four parallel strategies are implemented:
+- **Rayon** (default) - Work-stealing thread pool
+- **Scoped Threads** - Manual thread management
+- **Arc/Channels** - Atomic communication
+- **Serial** - Single-threaded baseline
 
-### Adding a New Fractal
+### GUI Architecture
 
-1. Implement the `FractalAlgorithm` trait in `src/core/fractals/`
-2. Create an algorithm struct with the required computation logic
-3. Use it with any of the generation functions
+The GUI uses a multi-threaded design:
+- Main thread handles UI rendering via egui/winit
+- Background worker computes fractals
+- Request coalescing prevents redundant work during rapid input
+- Generation IDs ensure stale frames are discarded
 
-### Adding a New Colour Map
+## Dependencies
 
-1. Implement the `ColourMap` trait in a new module
-2. Define the `map_iteration_count_to_colour()` method
-3. Use it with `generate_pixel_buffer()`
-
-## Testing
-
-```bash
-# Run all tests (87 total)
-cargo test
-
-# Run unit tests only
-cargo test --lib
-
-# Run a specific test
-cargo test <test_name>
-```
+- **rayon** - Parallel iteration
+- **winit** - Window management (GUI)
+- **pixels** - Framebuffer rendering (GUI)
+- **egui** - Immediate-mode UI (GUI)
+- **wgpu** - Graphics backend (GUI)
 
 ## License
 
