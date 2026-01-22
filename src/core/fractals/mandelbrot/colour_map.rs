@@ -9,15 +9,8 @@ pub enum MandelbrotColourMapKind {
 }
 
 impl MandelbrotColourMapKind {
-    /// All supported Mandelbrot colour maps, in deterministic order (default first).
-    ///
-    /// Invariant: this list must contain every enum variant exactly once.
     pub const ALL: &'static [Self] = &[Self::FireGradient, Self::BlueWhiteGradient];
 
-    /// Canonical human-readable label (single source of truth for UI/logging).
-    ///
-    /// Concrete implementations should implement `ColourMap::display_name()` by delegating to
-    /// `self.kind().display_name()` to prevent string drift.
     #[must_use]
     pub const fn display_name(self) -> &'static str {
         match self {
