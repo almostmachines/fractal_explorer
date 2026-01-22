@@ -5,6 +5,7 @@ use std::error::Error;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MandelbrotColourMapKind {
     BlueWhiteGradient,
+    FireGradient,
 }
 
 pub trait MandelbrotColourMap: ColourMap<u32> + Send + Sync {

@@ -7,7 +7,7 @@ use crate::core::data::complex_rect::ComplexRect;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
 use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
-use crate::core::fractals::mandelbrot::colour_maps::blue_white_gradient::MandelbrotBlueWhiteGradient;
+use crate::core::fractals::mandelbrot::colour_maps::fire_gradient::MandelbrotFireGradient;
 use crate::storage::write_ppm::write_ppm;
 
 pub fn mandelbrot_controller() -> Result<(), Box<dyn std::error::Error>> {
@@ -47,7 +47,7 @@ pub fn mandelbrot_controller() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Duration:   {:?}", duration);
 
-    let colour_map = MandelbrotBlueWhiteGradient::new(max_iterations);
+    let colour_map = MandelbrotFireGradient::new(max_iterations);
     let pixel_buf = generate_pixel_buffer(fractal, &colour_map, pixel_rect)?;
 
     write_ppm(pixel_buf, filepath)?;
