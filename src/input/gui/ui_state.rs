@@ -4,8 +4,8 @@ use crate::core::data::complex::Complex;
 use crate::core::data::complex_rect::ComplexRect;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
-use crate::core::fractals::mandelbrot::colour_map::MandelbrotColourMapKind;
-use crate::core::fractals::mandelbrot::colour_maps::factory::mandelbrot_colour_map_factory;
+use crate::core::fractals::mandelbrot::colour_mapping::factory::mandelbrot_colour_map_factory;
+use crate::core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds;
 
 const DEFAULT_MAX_ITERATIONS: u32 = 256;
 
@@ -26,7 +26,7 @@ fn default_region() -> ComplexRect {
 pub struct UiState {
     pub region: ComplexRect,
     pub max_iterations: u32,
-    pub colour_map_kind: MandelbrotColourMapKind,
+    pub colour_map_kind: MandelbrotColourMapKinds,
     last_submitted_request: Option<Arc<FractalConfig>>,
     pub latest_submitted_generation: u64,
 }
@@ -36,7 +36,7 @@ impl Default for UiState {
         Self {
             region: default_region(),
             max_iterations: DEFAULT_MAX_ITERATIONS,
-            colour_map_kind: MandelbrotColourMapKind::default(),
+            colour_map_kind: MandelbrotColourMapKinds::default(),
             last_submitted_request: None,
             latest_submitted_generation: 0,
         }
@@ -100,7 +100,7 @@ mod tests {
         assert!(!ui_state.should_submit(&same_request));
 
         // Change only colour_map_kind
-        ui_state.colour_map_kind = MandelbrotColourMapKind::BlueWhiteGradient;
+        ui_state.colour_map_kind = MandelbrotColourMapKinds::BlueWhiteGradient;
         let changed_request = ui_state.build_render_request(pixel_rect);
         assert!(ui_state.should_submit(&changed_request));
     }

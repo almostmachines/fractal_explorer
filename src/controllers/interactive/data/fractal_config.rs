@@ -1,4 +1,4 @@
-use crate::core::fractals::mandelbrot::{algorithm::MandelbrotAlgorithm, colour_map::MandelbrotColourMap};
+use crate::core::fractals::mandelbrot::{algorithm::MandelbrotAlgorithm, colour_mapping::map::MandelbrotColourMap};
 
 pub enum FractalConfig {
     Mandelbrot {

@@ -7,7 +7,7 @@ use crate::core::data::complex_rect::ComplexRect;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
 use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
-use crate::core::fractals::mandelbrot::colour_maps::fire_gradient::MandelbrotFireGradient;
+use crate::core::fractals::mandelbrot::colour_mapping::maps::fire_gradient::MandelbrotFireGradient;
 use crate::storage::write_ppm::write_ppm;
 
 pub fn mandelbrot_controller() -> Result<(), Box<dyn std::error::Error>> {

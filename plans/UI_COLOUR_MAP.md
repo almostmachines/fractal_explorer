@@ -30,7 +30,7 @@ Key facts that shape the implementation:
 ## Goal
 
 - Add a "Colour map" ComboBox to the debug panel.
-- Populate it from *all* available `MandelbrotColourMapKind` variants.
+- Populate it from *all* available `MandelbrotColourMapKinds` variants.
 - Store the selected kind in `UiState`.
 - Switching selection triggers a new render without adding a "Render" button.
 - Keep GUI code independent of concrete colour map types.
@@ -45,9 +45,9 @@ Non-goals:
 
 ### 1) Store the selection as an enum in `UiState`
 
-- Add `pub colour_map_kind: MandelbrotColourMapKind` to `UiState`.
-- Default it in `impl Default for UiState` via `MandelbrotColourMapKind::default()`.
-  - Implement `Default` for `MandelbrotColourMapKind` in core so the default is defined once
+- Add `pub colour_map_kind: MandelbrotColourMapKinds` to `UiState`.
+- Default it in `impl Default for UiState` via `MandelbrotColourMapKinds::default()`.
+  - Implement `Default` for `MandelbrotColourMapKinds` in core so the default is defined once
     and can later be reused for CLI defaults and persistence.
 - Do not reset `colour_map_kind` in `UiState::reset_view()`.
   Rationale: users expect "Reset view" to affect region/zoom, not palette. If a full
@@ -60,10 +60,10 @@ Non-goals:
 - a stable list of options
 - a user-facing label for each option
 
-Add both on `MandelbrotColourMapKind` in `src/core/fractals/mandelbrot/colour_map.rs`:
+Add both on `MandelbrotColourMapKinds` in `src/core/fractals/mandelbrot/colour_map.rs`:
 
 ```rust
-impl MandelbrotColourMapKind {
+impl MandelbrotColourMapKinds {
     /// All supported Mandelbrot colour maps, in deterministic order (default first).
     ///
     /// Invariant: this list must contain every enum variant exactly once.
@@ -81,13 +81,13 @@ impl MandelbrotColourMapKind {
     }
 }
 
-impl Default for MandelbrotColourMapKind {
+impl Default for MandelbrotColourMapKinds {
     fn default() -> Self {
         Self::FireGradient
     }
 }
 
-impl std::fmt::Display for MandelbrotColourMapKind {
+impl std::fmt::Display for MandelbrotColourMapKinds {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str((*self).display_name())
     }
@@ -111,18 +111,18 @@ Add a Mandelbrot-specific factory function in `src/core/fractals/mandelbrot/colo
 ```rust
 use self::blue_white_gradient::MandelbrotBlueWhiteGradient;
 use self::fire_gradient::MandelbrotFireGradient;
-use super::colour_map::{MandelbrotColourMap, MandelbrotColourMapKind};
+use super::colour_map::{MandelbrotColourMap, MandelbrotColourMapKinds};
 
 #[must_use]
 pub fn mandelbrot_colour_map_factory(
-    kind: MandelbrotColourMapKind,
+    kind: MandelbrotColourMapKinds,
     max_iterations: u32,
 ) -> Box<dyn MandelbrotColourMap> {
     match kind {
-        MandelbrotColourMapKind::FireGradient => {
+        MandelbrotColourMapKinds::FireGradient => {
             Box::new(MandelbrotFireGradient::new(max_iterations))
         }
-        MandelbrotColourMapKind::BlueWhiteGradient => {
+        MandelbrotColourMapKinds::BlueWhiteGradient => {
             Box::new(MandelbrotBlueWhiteGradient::new(max_iterations))
         }
     }
@@ -159,14 +159,14 @@ This ensures:
 In `src/input/gui/app.rs`, add a row near "Max iterations":
 
 ```rust
-use crate::core::fractals::mandelbrot::colour_map::MandelbrotColourMapKind;
+use crate::core::fractals::mandelbrot::colour_map::MandelbrotColourMapKinds;
 
 ui.horizontal(|ui| {
     ui.label("Colour map:");
     egui::ComboBox::from_id_salt("mandelbrot_colour_map")
         .selected_text(self.ui_state.colour_map_kind.display_name())
         .show_ui(ui, |ui| {
-            for &kind in MandelbrotColourMapKind::ALL {
+            for &kind in MandelbrotColourMapKinds::ALL {
                 ui.selectable_value(
                     &mut self.ui_state.colour_map_kind,
                     kind,
@@ -193,14 +193,14 @@ Notes:
 1) Factory round-trip + labels (and "all variants covered")
 
 - File: `src/core/fractals/mandelbrot/colour_maps/mod.rs`
-- Assert `MandelbrotColourMapKind::ALL.first() == Some(&MandelbrotColourMapKind::default())`
+- Assert `MandelbrotColourMapKinds::ALL.first() == Some(&MandelbrotColourMapKinds::default())`
   to keep the "default first" UI ordering invariant honest.
-- For each `kind` in `MandelbrotColourMapKind::ALL`, build via the factory and assert
+- For each `kind` in `MandelbrotColourMapKinds::ALL`, build via the factory and assert
   `map.kind() == kind`.
 - Also assert `map.display_name() == kind.display_name()`.
 - Guardrail: assert all `display_name()` strings are unique to prevent ambiguous UI options.
 - Note: Rust stable does not provide a stable `variant_count` API. Rely on code review + the
-  documented `ALL` invariant when adding new `MandelbrotColourMapKind` variants.
+  documented `ALL` invariant when adding new `MandelbrotColourMapKinds` variants.
 
 2) `UiState` request changes when only kind changes
 
@@ -241,19 +241,19 @@ kill $GUI_PID
 
 | File | Change |
 |------|--------|
-| `src/core/fractals/mandelbrot/colour_map.rs` | Add `MandelbrotColourMapKind::ALL`, `display_name()`, and `Default`/`Display` impls |
+| `src/core/fractals/mandelbrot/colour_map.rs` | Add `MandelbrotColourMapKinds::ALL`, `display_name()`, and `Default`/`Display` impls |
 | `src/core/fractals/mandelbrot/colour_maps/mod.rs` | Add `mandelbrot_colour_map_factory()` factory + tests |
 | `src/core/fractals/mandelbrot/colour_maps/fire_gradient.rs` | Delegate `display_name()` to `self.kind().display_name()` |
 | `src/core/fractals/mandelbrot/colour_maps/blue_white_gradient.rs` | Delegate `display_name()` to `self.kind().display_name()` |
-| `src/input/gui/ui_state.rs` | Add `colour_map_kind` to `UiState`, default it via `MandelbrotColourMapKind::default()`, use factory in `build_render_request()`, add tests |
+| `src/input/gui/ui_state.rs` | Add `colour_map_kind` to `UiState`, default it via `MandelbrotColourMapKinds::default()`, use factory in `build_render_request()`, add tests |
 | `src/input/gui/app.rs` | Add "Colour map" ComboBox using `selectable_value` |
 
 ## Acceptance Criteria
 
 - GUI shows a "Colour map" ComboBox.
-- ComboBox options come from `MandelbrotColourMapKind::ALL`, and labels come from
-  `MandelbrotColourMapKind::display_name()` (matching current colour map names).
-- Default selection comes from `MandelbrotColourMapKind::default()`.
+- ComboBox options come from `MandelbrotColourMapKinds::ALL`, and labels come from
+  `MandelbrotColourMapKinds::display_name()` (matching current colour map names).
+- Default selection comes from `MandelbrotColourMapKinds::default()`.
 - Clicking "Reset view" does not reset the colour map selection.
 - Selection is stored in `UiState` and used to build subsequent `FractalConfig` values.
 - Changing selection triggers a new render (new generation) without manual render controls.

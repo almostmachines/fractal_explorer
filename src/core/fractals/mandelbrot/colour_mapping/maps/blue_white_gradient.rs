@@ -1,7 +1,8 @@
 use crate::core::actions::generate_pixel_buffer::ports::colour_map::ColourMap;
 use crate::core::data::colour::Colour;
-use crate::core::fractals::mandelbrot::colour_map::{MandelbrotColourMap, MandelbrotColourMapKind};
-use crate::core::fractals::mandelbrot::colour_maps::errors::MandelbrotColourMapErrors;
+use crate::core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds;
+use crate::core::fractals::mandelbrot::colour_mapping::map::MandelbrotColourMap;
+use crate::core::fractals::mandelbrot::colour_mapping::errors::MandelbrotColourMapErrors;
 use std::error::Error;
 
 #[derive(Debug)]
@@ -36,8 +37,8 @@ impl ColourMap<u32> for MandelbrotBlueWhiteGradient {
 }
 
 impl MandelbrotColourMap for MandelbrotBlueWhiteGradient {
-    fn kind(&self) -> MandelbrotColourMapKind {
-        MandelbrotColourMapKind::BlueWhiteGradient
+    fn kind(&self) -> MandelbrotColourMapKinds {
+        MandelbrotColourMapKinds::BlueWhiteGradient
     }
 }
 
