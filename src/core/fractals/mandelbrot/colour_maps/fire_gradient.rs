@@ -24,9 +24,7 @@ impl ColourMap<u32> for MandelbrotFireGradient {
 
         let t = iterations as f64 / self.max_iterations as f64;
 
-        // Fire gradient: Black → Red → Orange → Yellow → White
         let (r, g, b) = if t < 0.25 {
-            // Black to Red
             let local_t = t / 0.25;
             (
                 (local_t * 255.0) as u8,
@@ -34,7 +32,6 @@ impl ColourMap<u32> for MandelbrotFireGradient {
                 0,
             )
         } else if t < 0.5 {
-            // Red to Orange (255, 0, 0) → (255, 165, 0)
             let local_t = (t - 0.25) / 0.25;
             (
                 255,
@@ -42,7 +39,6 @@ impl ColourMap<u32> for MandelbrotFireGradient {
                 0,
             )
         } else if t < 0.75 {
-            // Orange to Yellow (255, 165, 0) → (255, 255, 0)
             let local_t = (t - 0.5) / 0.25;
             (
                 255,
@@ -50,7 +46,6 @@ impl ColourMap<u32> for MandelbrotFireGradient {
                 0,
             )
         } else {
-            // Yellow to White (255, 255, 0) → (255, 255, 255)
             let local_t = (t - 0.75) / 0.25;
             (
                 255,
