@@ -1,13 +1,7 @@
-//! Interactive controller for real-time fractal rendering.
-//!
-//! This controller manages the render loop, handling user input
-//! events and dispatching rendered frames to the presentation layer.
-
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
-
 use crate::controllers::interactive::data::fractal_config::FractalConfig;
 use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::controllers::interactive::errors::render_error::RenderError;
@@ -21,83 +15,20 @@ use crate::core::actions::generate_pixel_buffer::generate_pixel_buffer::{
 };
 use crate::core::data::pixel_buffer::PixelBuffer;
 
-
-/// Shared state between the controller and its worker thread.
-///
-/// This struct contains all synchronization primitives needed for
-/// thread-safe communication between the GUI thread and the render worker.
 struct SharedState {
-    /// Monotonically increasing counter for request versioning.
-    /// Each new request increments this, allowing the worker to detect stale work.
     generation: AtomicU64,
-
-    /// Slot holding the most recent render request.
-    /// Tuple contains (generation_at_submit, request).
-    /// Uses Option to allow empty slot when no work is pending.
     latest_request: Mutex<Option<(u64, Arc<FractalConfig>)>>,
-
-    /// Condition variable to wake the worker when:
-    /// - A new request arrives
-    /// - Shutdown is requested
     wake: Condvar,
-
-    /// Flag to signal graceful shutdown to the worker thread.
     shutdown: AtomicBool,
-
-    /// Output port for delivering rendered frames to the presentation layer.
     presenter_port: Arc<dyn PresenterPort>,
 }
 
-/// Interactive controller for real-time fractal rendering.
-///
-/// Manages the render lifecycle:
-/// - Accepts a `PresenterPort` for output
-/// - Processes `RenderRequest` inputs via `submit_request()`
-/// - Coordinates parallel rendering on a background worker thread
-/// - Uses generation IDs to suppress stale frames (soft cancellation)
-///
-/// # Threading Model
-///
-/// The controller spawns a dedicated worker thread that:
-/// 1. Waits for new requests or shutdown signal
-/// 2. Takes the most recent request (coalescing rapid requests)
-/// 3. Renders using core domain actions
-/// 4. Checks if the result is still current before emitting
-///
-/// # Example
-///
-/// ```ignore
-/// let sink: Arc<dyn PresenterPort> = /* ... */;
-/// let controller = InteractiveController::new(sink);
-///
-/// // Submit render requests (returns generation ID)
-/// let gen = controller.submit_request(request);
-///
-/// // When done, shutdown gracefully
-/// controller.shutdown();
-/// ```
 pub struct InteractiveController {
-    /// Shared state accessible by both the controller and worker thread.
     shared: Arc<SharedState>,
-
-    /// Handle to join the worker thread on shutdown.
-    /// Option because it's taken (and joined) during shutdown.
     worker: Option<JoinHandle<()>>,
 }
 
 impl InteractiveController {
-    /// Creates a new interactive controller with the given frame sink.
-    ///
-    /// Spawns a background worker thread that will process render requests
-    /// and deliver results via the provided `PresenterPort`.
-    ///
-    /// # Arguments
-    ///
-    /// * `presenter_port` - Output port for receiving rendered frames
-    ///
-    /// # Returns
-    ///
-    /// A new controller ready to accept render requests via `submit_request()`.
     pub fn new(presenter_port: Arc<dyn PresenterPort>) -> Self {
         let shared = Arc::new(SharedState {
             generation: AtomicU64::new(0),
@@ -107,7 +38,6 @@ impl InteractiveController {
             presenter_port,
         });
 
-        // Clone Arc for the worker thread
         let worker_shared = Arc::clone(&shared);
 
         let worker = thread::spawn(move || {
@@ -120,95 +50,59 @@ impl InteractiveController {
         }
     }
 
-    /// Submits a render request to be processed by the worker thread.
-    ///
-    /// This method is non-blocking. If a previous request is still pending,
-    /// it will be superseded (overwrite semantics / request coalescing).
-    ///
-    /// # Arguments
-    ///
-    /// * `request` - The render parameters to use
-    ///
-    /// # Returns
-    ///
-    /// The generation ID assigned to this request. Can be used to correlate
-    /// with rendered frames (though frames may be silently dropped if superseded).
     pub fn submit_request(&self, request: Arc<FractalConfig>) -> u64 {
-        // Increment generation atomically and get the new value
         let generation = self.shared.generation.fetch_add(1, Ordering::SeqCst) + 1;
 
-        // Store the request in the slot (overwriting any pending request)
         {
             let mut guard = self.shared.latest_request.lock().unwrap();
             *guard = Some((generation, request));
         }
 
-        // Wake the worker thread
         self.shared.wake.notify_one();
 
         generation
     }
 
-    /// Shuts down the controller gracefully.
-    ///
-    /// Signals the worker thread to stop and waits for it to finish
-    /// processing any in-flight work. After this call, the controller
-    /// should not be used.
     pub fn shutdown(&mut self) {
-        // Signal shutdown
         self.shared.shutdown.store(true, Ordering::Release);
         self.shared.wake.notify_one();
 
-        // Wait for worker to finish
         if let Some(handle) = self.worker.take() {
             let _ = handle.join();
         }
     }
 
-    /// The main worker loop that processes render requests.
-    ///
-    /// Runs until shutdown is signaled. Each iteration:
-    /// 1. Waits for a request or shutdown signal
-    /// 2. Takes the latest request (coalescing multiple rapid requests)
-    /// 3. Performs the render
-    /// 4. Checks if result is still current before emitting
     fn worker_loop(shared: &Arc<SharedState>) {
         loop {
-            // Wait for work or shutdown
             let (job_generation, request) = {
                 let mut guard = shared.latest_request.lock().unwrap();
                 loop {
-                    // Check shutdown first
                     if shared.shutdown.load(Ordering::Acquire) {
                         return;
                     }
-                    // Try to take a request
+
                     if let Some(req) = guard.take() {
                         break req;
                     }
-                    // Wait for notification (releases lock while waiting)
+
                     guard = shared.wake.wait(guard).unwrap();
                 }
             };
 
-            // Create cancellation token that checks for shutdown or newer request
             let cancel_token = || {
                 shared.shutdown.load(Ordering::Relaxed)
                     || job_generation != shared.generation.load(Ordering::Relaxed)
             };
 
-            // Perform the render (outside the lock)
             let start = Instant::now();
             let result = Self::render_request(&request, &cancel_token);
             let render_duration = start.elapsed();
 
-            // Handle the result
             match result {
                 Ok(pixel_buffer) => {
-                    // Check if this job has been superseded before emitting
                     let current_gen = shared.generation.load(Ordering::Acquire);
+
                     if job_generation != current_gen {
-                        // A newer request arrived; discard this result
                         continue;
                     }
 
@@ -219,14 +113,12 @@ impl InteractiveController {
                     }));
                 }
                 Err(RenderOutcome::Cancelled) => {
-                    // Cancellation is expected control flow - silently discard
                     continue;
                 }
                 Err(RenderOutcome::Error(message)) => {
-                    // Check if this job has been superseded before emitting error
                     let current_gen = shared.generation.load(Ordering::Acquire);
+
                     if job_generation != current_gen {
-                        // A newer request arrived; discard this error
                         continue;
                     }
 
@@ -241,10 +133,6 @@ impl InteractiveController {
         }
     }
 
-    /// Performs the actual rendering based on the request parameters.
-    ///
-    /// Returns the RGB pixel buffer on success, or `Err(Cancelled)` if the
-    /// operation was cancelled, or `Err(message)` for other errors.
     fn render_request<C: crate::core::actions::cancellation::CancelToken>(
         request: &FractalConfig,
         cancel: &C,
@@ -262,7 +150,6 @@ impl InteractiveController {
                 }
             })?;
 
-        // Recheck cancellation between fractal and colour mapping to short-circuit quickly
         if cancel.is_cancelled() {
             return Err(RenderOutcome::Cancelled);
         }
@@ -289,11 +176,8 @@ impl InteractiveController {
     }
 }
 
-/// Outcome of a render operation that distinguishes cancellation from errors.
 enum RenderOutcome {
-    /// The operation was cancelled (expected control flow, not an error).
     Cancelled,
-    /// An actual error occurred.
     Error(String),
 }
 
