@@ -185,6 +185,7 @@ pub fn run_gui() {
     let event_loop = EventLoopBuilder::<GuiEvent>::with_user_event()
         .build()
         .expect("Failed to create event loop");
+
     let event_loop_proxy = event_loop.create_proxy();
 
     let window: &'static Window = Box::leak(Box::new(
