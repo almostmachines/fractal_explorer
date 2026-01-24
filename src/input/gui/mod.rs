@@ -6,6 +6,7 @@
 mod app;
 mod events;
 mod ui_state;
+pub mod ports;
 
 pub use app::run_gui;
 pub use events::GuiEvent;

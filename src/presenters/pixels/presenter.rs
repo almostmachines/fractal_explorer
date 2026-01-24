@@ -10,6 +10,7 @@ use winit::window::Window;
 use crate::controllers::interactive::ports::presenter_port::PresenterPort;
 use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::controllers::interactive::events::render_event::RenderEvent;
+use crate::input::gui::ports::presenter::GuiPresenterPort;
 use crate::input::gui::GuiEvent;
 use crate::presenters::pixels::adapter::PixelsAdapter;
 
@@ -24,8 +25,8 @@ pub struct PixelsPresenter {
     last_render_duration: Option<Duration>,
 }
 
-impl PixelsPresenter {
-    pub fn new(window: &'static Window, event_loop_proxy: EventLoopProxy<GuiEvent>) -> Self {
+impl GuiPresenterPort for PixelsPresenter {
+    fn new(window: &'static Window, event_loop_proxy: EventLoopProxy<GuiEvent>) -> Self {
         let size = window.inner_size();
         let surface_texture = SurfaceTexture::new(size.width, size.height, window);
 
@@ -51,46 +52,11 @@ impl PixelsPresenter {
         }
     }
 
-    pub fn share_adapter(&self) -> Arc<dyn PresenterPort> {
+    fn share_adapter(&self) -> Arc<dyn PresenterPort> {
         Arc::clone(&self.adapter) as Arc<dyn PresenterPort>
     }
 
-    fn draw_placeholder(&mut self) {
-        let frame = self.pixels.frame_mut();
-        for pixel in frame.chunks_exact_mut(4) {
-            pixel[0] = 0;
-            pixel[1] = 0;
-            pixel[2] = 0;
-            pixel[3] = 255;
-        }
-    }
-
-    pub fn maybe_draw_frame(&mut self, requested_generation: u64) {
-        if let Some(event) = self.adapter.render_event() {
-            match event {
-                RenderEvent::Frame(frame) => {
-                    let pixel_rect = frame.pixel_buffer.pixel_rect();
-
-                    if frame.generation == requested_generation
-                        && pixel_rect.width() == self.width
-                        && pixel_rect.height() == self.height
-                    {
-                        self.copy_pixel_buffer_into_pixels_frame(&frame);
-                        self.has_frame = true;
-                        self.last_render_duration = Some(frame.render_duration);
-                        self.last_error_message = None;
-                    }
-                }
-                RenderEvent::Error(error) => {
-                    if error.generation == requested_generation {
-                        self.last_error_message = Some(error.message);
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn render(&mut self, egui_output: egui::FullOutput, egui_ctx: &EguiContext, requested_generation: u64) -> Result<(), pixels::Error> {
+    fn render(&mut self, egui_output: egui::FullOutput, egui_ctx: &EguiContext, requested_generation: u64) -> Result<(), pixels::Error> {
         if self.width == 0 || self.height == 0 {
             return Ok(());
         }
@@ -161,7 +127,7 @@ impl PixelsPresenter {
         })
     }
 
-    pub fn resize(&mut self, width: u32, height: u32) {
+    fn resize(&mut self, width: u32, height: u32) {
         self.width = width;
         self.height = height;
 
@@ -174,6 +140,44 @@ impl PixelsPresenter {
             .expect("Failed to resize buffer");
 
         self.has_frame = false;
+    }
+
+}
+
+impl PixelsPresenter {
+    fn draw_placeholder(&mut self) {
+        let frame = self.pixels.frame_mut();
+        for pixel in frame.chunks_exact_mut(4) {
+            pixel[0] = 0;
+            pixel[1] = 0;
+            pixel[2] = 0;
+            pixel[3] = 255;
+        }
+    }
+
+    pub fn maybe_draw_frame(&mut self, requested_generation: u64) {
+        if let Some(event) = self.adapter.render_event() {
+            match event {
+                RenderEvent::Frame(frame) => {
+                    let pixel_rect = frame.pixel_buffer.pixel_rect();
+
+                    if frame.generation == requested_generation
+                        && pixel_rect.width() == self.width
+                        && pixel_rect.height() == self.height
+                    {
+                        self.copy_pixel_buffer_into_pixels_frame(&frame);
+                        self.has_frame = true;
+                        self.last_render_duration = Some(frame.render_duration);
+                        self.last_error_message = None;
+                    }
+                }
+                RenderEvent::Error(error) => {
+                    if error.generation == requested_generation {
+                        self.last_error_message = Some(error.message);
+                    }
+                }
+            }
+        }
     }
 
     pub fn copy_pixel_buffer_into_pixels_frame(&mut self, frame: &FrameData) {

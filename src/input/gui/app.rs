@@ -3,7 +3,7 @@ use std::time::Duration;
 use egui::Context;
 use egui_winit::State as EguiWinitState;
 use super::{GuiEvent, UiState};
-use crate::core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds;
+use crate::{core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds, input::gui::ports::presenter::GuiPresenterPort};
 use crate::presenters::pixels::presenter::PixelsPresenter;
 use crate::controllers::interactive::InteractiveController;
 use crate::core::data::pixel_rect::PixelRect;
@@ -15,11 +15,12 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-struct App {
+struct App<T: GuiPresenterPort>
+{
     width: u32,
     height: u32,
     scale_factor: f64,
-    presenter: PixelsPresenter,
+    presenter: T,
     controller: InteractiveController,
     ui_state: UiState,
     last_render_duration: Option<Duration>,
@@ -28,11 +29,12 @@ struct App {
     egui_state: EguiWinitState,
 }
 
-impl App {
+impl<T: GuiPresenterPort> App<T>
+{
     fn new(
         window: &'static Window,
         event_loop: &EventLoop<GuiEvent>,
-        presenter: PixelsPresenter,
+        presenter: T,
         controller: InteractiveController,
     ) -> Self {
         let size = window.inner_size();
