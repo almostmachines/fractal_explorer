@@ -222,7 +222,6 @@ pub fn run_gui() {
             match event {
                 Event::UserEvent(GuiEvent::Wake) => {
                     redraw_pending = true;
-                    window.request_redraw();
                 }
                 Event::WindowEvent {
                     ref event,
