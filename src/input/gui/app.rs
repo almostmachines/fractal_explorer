@@ -80,18 +80,11 @@ impl App {
             return;
         }
 
-        let width = i32::try_from(self.width).ok();
-        let height = i32::try_from(self.height).ok();
-        let (width, height) = match (width, height) {
-            (Some(width), Some(height)) => (width, height),
-            _ => return,
-        };
-
         let pixel_rect = match PixelRect::new(
             Point { x: 0, y: 0 },
             Point {
-                x: width - 1,
-                y: height - 1,
+                x: (self.width as i32) - 1,
+                y: (self.height as i32) - 1,
             },
         ) {
             Ok(rect) => rect,
@@ -99,6 +92,7 @@ impl App {
         };
 
         let request = self.ui_state.build_render_request(pixel_rect);
+
         if self.ui_state.should_submit(&request) {
             let request = Arc::new(request);
             let generation = self.controller.submit_request(Arc::clone(&request));
