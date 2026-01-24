@@ -3,7 +3,8 @@ use std::time::Duration;
 use egui::Context;
 use egui_winit::State as EguiWinitState;
 use super::{GuiEvent, UiState};
-use crate::{core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds, presenters::PixelsPresenter};
+use crate::core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds;
+use crate::presenters::pixels::presenter::PixelsPresenter;
 use crate::controllers::interactive::InteractiveController;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
@@ -198,8 +199,7 @@ pub fn run_gui() {
     ));
 
     let presenter = PixelsPresenter::new(window, event_loop_proxy);
-    let presenter_port = presenter.share_presenter_port();
-    let controller = InteractiveController::new(presenter_port);
+    let controller = InteractiveController::new(presenter.share_adapter());
     let mut app = App::new(window, &event_loop, presenter, controller);
     let mut redraw_pending = true;
 

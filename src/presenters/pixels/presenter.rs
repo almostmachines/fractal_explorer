@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 use pixels::Pixels;
 use pixels::SurfaceTexture;
@@ -11,16 +11,12 @@ use crate::controllers::interactive::ports::presenter_port::PresenterPort;
 use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::controllers::interactive::events::render_event::RenderEvent;
 use crate::input::gui::GuiEvent;
-
-struct PixelsPresenterPort {
-    render_event: Mutex<Option<RenderEvent>>,
-    event_loop_proxy: EventLoopProxy<GuiEvent>,
-}
+use crate::presenters::pixels::adapter::PixelsAdapter;
 
 pub struct PixelsPresenter {
     pixels: Pixels<'static>,
     egui_renderer: EguiRenderer,
-    presenter_port: Arc<PixelsPresenterPort>,
+    adapter: Arc<PixelsAdapter>,
     width: u32,
     height: u32,
     has_frame: bool,
@@ -46,10 +42,7 @@ impl PixelsPresenter {
         Self {
             pixels,
             egui_renderer,
-            presenter_port: Arc::new(PixelsPresenterPort {
-                render_event: Mutex::new(None),
-                event_loop_proxy,
-            }),
+            adapter: Arc::new(PixelsAdapter::new(event_loop_proxy),),
             width: size.width,
             height: size.height,
             has_frame: false,
@@ -58,13 +51,8 @@ impl PixelsPresenter {
         }
     }
 
-    pub fn share_presenter_port(&self) -> Arc<dyn PresenterPort> {
-        Arc::clone(&self.presenter_port) as Arc<dyn PresenterPort>
-    }
-
-    #[must_use]
-    pub fn take_render_event(&self) -> Option<RenderEvent> {
-        self.presenter_port.render_event.lock().unwrap().take()
+    pub fn share_adapter(&self) -> Arc<dyn PresenterPort> {
+        Arc::clone(&self.adapter) as Arc<dyn PresenterPort>
     }
 
     fn draw_placeholder(&mut self) {
@@ -78,7 +66,7 @@ impl PixelsPresenter {
     }
 
     pub fn maybe_draw_frame(&mut self, requested_generation: u64) {
-        if let Some(event) = self.take_render_event() {
+        if let Some(event) = self.adapter.render_event() {
             match event {
                 RenderEvent::Frame(frame) => {
                     let pixel_rect = frame.pixel_buffer.pixel_rect();
@@ -212,12 +200,5 @@ impl PixelsPresenter {
             dst_pixel[2] = src_pixel[2];
             dst_pixel[3] = 255;
         }
-    }
-}
-
-impl PresenterPort for PixelsPresenterPort {
-    fn present(&self, event: RenderEvent) {
-        *self.render_event.lock().unwrap() = Some(event);
-        let _ = self.event_loop_proxy.send_event(GuiEvent::Wake);
     }
 }
