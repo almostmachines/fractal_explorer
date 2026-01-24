@@ -23,9 +23,6 @@ struct App {
     ui_state: UiState,
     last_render_duration: Option<Duration>,
     last_error_message: Option<String>,
-    /// Whether the window is focused. Can be used to reduce render rate when unfocused.
-    #[allow(dead_code)]
-    focused: bool,
     egui_ctx: Context,
     egui_state: EguiWinitState,
 }
@@ -58,7 +55,6 @@ impl App {
             ui_state: UiState::default(),
             last_render_duration: None,
             last_error_message: None,
-            focused: true,
             egui_ctx,
             egui_state,
         }
@@ -280,9 +276,6 @@ pub fn run_gui() {
                             let size = window.inner_size();
                             app.resize(size.width, size.height);
                             redraw_pending = true;
-                        }
-                        WindowEvent::Focused(focused) => {
-                            app.focused = *focused;
                         }
                         _ => {}
                     }
