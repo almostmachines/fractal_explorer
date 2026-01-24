@@ -180,11 +180,6 @@ impl PixelsPresenter {
         self.pixels
             .resize_surface(width, height)
             .expect("Failed to resize surface");
-    }
-
-    pub fn resize_pixels_buffer(&mut self, width: u32, height: u32) {
-        self.width = width;
-        self.height = height;
 
         self.pixels
             .resize_buffer(width, height)
