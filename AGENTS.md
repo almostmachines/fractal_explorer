@@ -1,59 +1,61 @@
 # Repository Guidelines
 
-## Project
+## Project Description
 
 A Rust-based Mandelbrot fractal renderer with both CLI and interactive GUI capabilities. Features parallel rendering, multiple colour maps, and real-time exploration.
 
-## Architecture
+## Project Structure & Module Organization
 
-The codebase follows **hexagonal architecture** (ports & adapters). See `ARCHITECTURE.md` for full details.
+- `src/core/`: domain logic (fractal algorithms, data types, actions, utils). Keep this layer free of UI/IO.
+- `src/controllers/`: orchestration for CLI/interactive flows plus ports (interfaces) for presenters.
+- `src/presenters/`: output adapters (e.g., `presenters/file/ppm.rs` for PPM files, `presenters/pixels/` for GUI pixels).
+- `src/input/gui/`: GUI app and command wiring, compiled only with the `gui` feature.
+- Entry points:
+  - `src/main.rs`: CLI “test” generator that writes `output/mandelbrot.ppm`.
+  - `src/bin/gui.rs`: GUI binary (feature-gated).
+- Repo utilities:
+  - `plans/`: design notes/working plans.
+  - `.beads/`: Beads issue tracking metadata (treat as source-controlled project state).
 
-### Layer Overview
+## Build, Test, and Development Commands
 
-```
-src/
-├── core/           # Pure domain logic (no external deps)
-│   ├── data/       # Complex, PixelBuffer, Colour, rects
-│   ├── fractals/   # Mandelbrot algorithm + colour maps
-│   └── actions/    # Use cases: generate_fractal, generate_pixel_buffer
-├── controllers/    # Application orchestration
-│   ├── mandelbrot.rs        # CLI (synchronous)
-│   └── interactive/         # GUI (async with worker thread)
-├── input/gui/      # winit + egui event handling
-├── presenters/     # wgpu framebuffer rendering
-└── storage/        # PPM file output
-```
+```bash
+cargo build                 # compile default (non-GUI) target
+cargo run                   # generate output/mandelbrot.ppm
+cargo test                  # run unit tests
+cargo run --bin gui --features gui   # run GUI app
 
-### Key Ports (Traits)
-
-- **`FractalAlgorithm`**: Computes iteration count per pixel
-- **`ColourMap<T>`**: Maps iteration counts to RGB colours
-- **`CancelToken`**: Cooperative cancellation (checked every 1024 pixels)
-- **`PresenterPort`**: Receives rendered frames for display
-
-### Rendering Pipeline
-
-```
-PixelRect + Algorithm → Vec<u32> iterations → PixelBuffer RGB → Output
+cargo fmt                   # format (rustfmt)
+cargo clippy --all-targets --all-features -- -D warnings  # lint
 ```
 
-### Adding a New Colour Map
+## Coding Style & Naming Conventions
 
-1. Add variant to `MandelbrotColourMapKinds` in `core/fractals/mandelbrot/colour_mapping/kinds.rs`
-2. Create implementation in `core/fractals/mandelbrot/colour_mapping/maps/`
-3. Register in `mandelbrot_colour_map_factory()` in `factory.rs`
+- Rust edition: 2024 (use idiomatic std error types; prefer `Result<T, E>` with explicit error enums).
+- Formatting: `cargo fmt` (4-space indent; rustfmt defaults).
+- Naming: modules/functions `snake_case`, types/traits `PascalCase`, constants `SCREAMING_SNAKE_CASE`.
+- Keep GUI-only code behind `cfg(feature = "gui")` and avoid leaking GUI types into `src/core/`.
 
-### GUI Threading Model
+## Testing Guidelines
 
-- Main thread: UI rendering (egui/winit)
-- Worker thread: Fractal computation
-- Generation IDs track request versions; stale results are discarded
-- Request coalescing: new requests replace pending ones
+- Use Rust’s built-in test harness (`#[cfg(test)] mod tests { ... }`) colocated with the code under test.
+- Prefer fast, deterministic unit tests for `src/core/` invariants (e.g., `PixelRect`, mapping, algorithms).
+- If a change affects GUI state logic, add/extend tests in `src/input/gui/app/`.
+
+## Commit & Pull Request Guidelines
+
+- Commit messages follow a short, imperative style (examples in history: “Refactor …”, “Add …”, “Update docs”).
+- Keep commits focused; avoid mixing formatting-only changes with behavior changes.
+- PRs should include: what/why, how to run (commands), and artifacts when relevant:
+  - CLI changes: attach or describe expected `output/mandelbrot.ppm`.
+  - GUI changes: screenshots or a short screen recording.
+- Beads: prefer `bd create/list/show/update/sync`; don’t manually edit `.beads/issues.jsonl`.
+
 
 ## GUI Run Permissions
 - When running the GUI app (for example `cargo run --features gui --bin gui`), **always request escalated permissions**.
-  - Reason: the sandbox seccomp profile blocks Wayland socket connections, which triggers `WaylandError(Connection(NoCompositor))` even when Wayland is available.
-  - Alternative: run the session in `danger-full-access` mode so GUI commands can execute without needing per-command escalation.
+  - Reason: the sandbox seccomp profile blocks Wayland socket connections which triggers `WaylandError(Connection(NoCompositor))` even when Wayland is available.
+  - Alternatively: run the session in `danger-full-access` mode so GUI commands can execute without needing per-command escalation.
 
 ## GUI Visual Testing
 - visually test the GUI by taking screenshots with `grim` (Wayland).
@@ -72,31 +74,8 @@ grim /tmp/fractal_gui_test.png
 # Kill the GUI
 kill $GUI_PID
 
-# View the screenshot using the Read tool on /tmp/fractal_gui_test.png
+# Read the screenshot at /tmp/fractal_gui_test.png
 ```
-
-**Limitations:**
-- Snapshot-based, not real-time
-- Cannot interact with GUI (clicking, dragging)
-- May need timing adjustments for slower renders
-
-## Coding Style & Naming Conventions
-- Follow standard Rust style (rustfmt defaults, 4-space indentation).
-- Use `snake_case` for functions/modules, `PascalCase` for types, and `SCREAMING_SNAKE_CASE` for constants.
-
-## Testing Guidelines
-- Tests live next to the code under `#[cfg(test)]` blocks.
-- Prefer small, deterministic unit tests
-- Name tests descriptively (for example `test_generate_fractal_returns_ok`).
-- Run all tests with `cargo test` before opening a PR.
-
-## Commit & Pull Request Guidelines
-- Commit subjects are short, sentence-case, imperative (examples from history: `Rename fractal generation actions`).
-- Keep commits scoped; avoid mixing refactors with feature changes.
-- PRs should include: a concise summary, tests run, and sample output images or notes when rendering changes (`output/*.ppm`).
-
-## Tips
-- To generate tree diagrams you can use the command `tree --gitignore`.
 
 ## Task Tracking and Management
 
@@ -150,3 +129,7 @@ When ending a work session, complete all steps below.
 - Create new issues with `bd create` when you discover tasks.
 - Use descriptive titles and set appropriate priority/type.
 - Always `bd sync` before ending session.
+
+## Generating tree diagrams
+
+You can use the command `tree --gitignore`.

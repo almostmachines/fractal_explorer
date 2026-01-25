@@ -1,93 +1,66 @@
-# Fractal Explorer
+# fractal_explorer
 
-A Rust-based Mandelbrot fractal renderer with both CLI and interactive GUI capabilities. Features parallel rendering, multiple colour maps, and real-time exploration.
+A Rust Mandelbrot fractal renderer with:
 
-## Features
+- A CLI “test generator” that writes a binary PPM (`output/mandelbrot.ppm`)
+- An interactive GUI (feature-gated) for real-time exploration
 
-- **Mandelbrot Set Rendering** - Classic fractal generation with configurable iterations
-- **Multiple Colour Maps** - Fire gradient (red to white) and blue-white gradient
-- **Parallel Processing** - Work-stealing parallelism via Rayon for fast rendering
-- **Interactive GUI** - Change fractal parameters and colour maps in real-time
-- **PPM Output** - Simple, portable image format for CLI renders
+The project uses a ports-and-adapters (hexagonal) architecture: core domain logic lives in `src/core/`, while UI/IO are implemented as adapters in `src/presenters/` and `src/input/`.
 
-## Quick Start
+## Quickstart
+
+Prerequisites: a recent Rust toolchain (edition 2024).
 
 ```bash
-# Generate a fractal image (CLI)
+cargo build
+cargo run                  # writes output/mandelbrot.ppm
+```
+
+The CLI run is a fixed “demo” render (currently 800×600 at 256 max iterations).
+
+For faster renders, use release mode:
+
+```bash
 cargo run --release
-
-# Launch the interactive GUI
-cargo run --release --features gui --bin gui
 ```
 
-The CLI outputs to `output/mandelbrot.ppm`. You can view PPM files with most image viewers or convert them using ImageMagick:
+To view the output PPM, you can use any PPM-capable viewer, or convert it (example with ImageMagick):
 
 ```bash
-convert output/mandelbrot.ppm output/mandelbrot.png
+magick output/mandelbrot.ppm output/mandelbrot.png
 ```
 
-## Build Commands
+## GUI
+
+The GUI binary is behind the `gui` feature.
 
 ```bash
-cargo build              # Debug build
-cargo build --release    # Optimized build
-cargo test               # Run all tests
-cargo run                # Generate fractal (CLI)
-cargo run --features gui --bin gui  # Interactive GUI
+cargo run --bin gui --features gui
 ```
 
-## GUI Controls
+Current GUI controls:
 
-The interactive GUI provides:
+- Max iterations (slider)
+- Colour map (dropdown)
+- Reset view
 
-- **Iterations Slider** - Adjust detail level (1-1000)
-- **Colour Map Selection** - Switch between colour schemes
-- **Reset View** - Return to default view
-- **Render Timing** - See how long each frame takes
+## Project layout
 
-## Project Structure
+- `src/core/`: pure domain logic (fractal algorithms, data types, actions, utils)
+- `src/controllers/`: orchestration for CLI/interactive flows + ports (interfaces) for presenters
+- `src/presenters/`: output adapters (e.g., `presenters/file/ppm.rs` for PPM files)
+- `src/input/gui/`: GUI app and command wiring (compiled only with `--features gui`)
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for full details.
+
+## Development
+
+```bash
+cargo test
+cargo fmt
+cargo clippy --all-targets --all-features -- -D warnings
 ```
-src/
-├── main.rs                 # CLI entry point
-├── bin/gui.rs              # GUI entry point
-├── core/
-│   ├── data/               # Complex numbers, pixel buffers, colours
-│   ├── fractals/mandelbrot/
-│   │   ├── algorithm.rs    # Mandelbrot iteration
-│   │   └── colour_mapping/ # Colour map implementations
-│   └── actions/            # Fractal generation (serial & parallel)
-├── controllers/            # Application orchestration
-├── input/gui/              # GUI input handling (winit + egui)
-└── storage/                # PPM file output
-```
-
-## Technical Details
-
-### Rendering
-
-Four parallel strategies are implemented:
-- **Rayon** (default) - Work-stealing thread pool
-- **Scoped Threads** - Manual thread management
-- **Arc/Channels** - Atomic communication
-- **Serial** - Single-threaded baseline
-
-### GUI Architecture
-
-The GUI uses a multi-threaded design:
-- Main thread handles UI rendering via egui/winit
-- Background worker computes fractals
-- Request coalescing prevents redundant work during rapid input
-- Generation IDs ensure stale frames are discarded
-
-## Dependencies
-
-- **rayon** - Parallel iteration
-- **winit** - Window management (GUI)
-- **pixels** - Framebuffer rendering (GUI)
-- **egui** - Immediate-mode UI (GUI)
-- **wgpu** - Graphics backend (GUI)
 
 ## License
 
-MIT
+MIT License - see [LICENSE.txt](LICENSE.txt) for details.

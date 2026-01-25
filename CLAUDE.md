@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 cargo build              # Debug build
 cargo build --release    # Optimized build
-cargo test               # Run all tests (87 total)
+cargo test               # Run all tests (118 total)
 cargo test --lib         # Run unit tests only
 cargo test <test_name>   # Run specific test
 cargo run                # Generate fractal to output/mandelbrot.ppm
@@ -120,7 +120,7 @@ src/
 │   ├── fractals/   # Mandelbrot algorithm + colour maps
 │   └── actions/    # Use cases: generate_fractal, generate_pixel_buffer
 ├── controllers/    # Application orchestration
-│   ├── mandelbrot.rs        # CLI (synchronous)
+│   ├── cli/                 # CLI (synchronous)
 │   └── interactive/         # GUI (async with worker thread)
 ├── input/gui/      # winit + egui event handling
 ├── presenters/     # wgpu framebuffer rendering
@@ -132,7 +132,7 @@ src/
 - **`FractalAlgorithm`**: Computes iteration count per pixel
 - **`ColourMap<T>`**: Maps iteration counts to RGB colours
 - **`CancelToken`**: Cooperative cancellation (checked every 1024 pixels)
-- **`PresenterPort`**: Receives rendered frames for display
+- **`InteractiveControllerPresenterPort`**: Receives rendered frames for display
 
 ### Rendering Pipeline
 
