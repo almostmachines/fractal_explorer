@@ -3,11 +3,5 @@
 //! This module provides a windowed interface using winit for window management,
 //! pixels for framebuffer rendering, and egui for UI controls.
 
-mod app;
-mod events;
-mod ui_state;
-pub mod ports;
-
-pub use app::run_gui;
-pub use events::GuiEvent;
-pub use ui_state::UiState;
+pub mod app;
+pub mod command;

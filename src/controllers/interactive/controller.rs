@@ -4,9 +4,9 @@ use std::thread::{self, JoinHandle};
 use std::time::Instant;
 use crate::controllers::interactive::data::fractal_config::FractalConfig;
 use crate::controllers::interactive::data::frame_data::FrameData;
-use crate::controllers::interactive::errors::render_error::RenderError;
-use crate::controllers::interactive::events::render_event::RenderEvent;
-use crate::controllers::interactive::ports::presenter_port::PresenterPort;
+use crate::controllers::interactive::errors::render::RenderError;
+use crate::controllers::interactive::events::render::RenderEvent;
+use crate::controllers::interactive::ports::presenter::InteractiveControllerPresenterPort;
 use crate::core::actions::generate_fractal::generate_fractal_parallel_rayon::{
     generate_fractal_parallel_rayon_cancelable, GenerateFractalError,
 };
@@ -20,7 +20,7 @@ struct SharedState {
     latest_request: Mutex<Option<(u64, Arc<FractalConfig>)>>,
     wake: Condvar,
     shutdown: AtomicBool,
-    presenter_port: Arc<dyn PresenterPort>,
+    presenter_port: Arc<dyn InteractiveControllerPresenterPort>,
 }
 
 pub struct InteractiveController {
@@ -29,7 +29,7 @@ pub struct InteractiveController {
 }
 
 impl InteractiveController {
-    pub fn new(presenter_port: Arc<dyn PresenterPort>) -> Self {
+    pub fn new(presenter_port: Arc<dyn InteractiveControllerPresenterPort>) -> Self {
         let shared = Arc::new(SharedState {
             generation: AtomicU64::new(0),
             latest_request: Mutex::new(None),

@@ -23,15 +23,16 @@ fn default_region() -> ComplexRect {
     .expect("default mandelbrot region is valid")
 }
 
-pub struct UiState {
+pub struct GuiAppState {
     pub region: ComplexRect,
     pub max_iterations: u32,
     pub colour_map_kind: MandelbrotColourMapKinds,
     last_submitted_request: Option<Arc<FractalConfig>>,
     pub latest_submitted_generation: u64,
+    pub redraw_pending: bool,
 }
 
-impl Default for UiState {
+impl Default for GuiAppState {
     fn default() -> Self {
         Self {
             region: default_region(),
@@ -39,11 +40,12 @@ impl Default for UiState {
             colour_map_kind: MandelbrotColourMapKinds::default(),
             last_submitted_request: None,
             latest_submitted_generation: 0,
+            redraw_pending: true,
         }
     }
 }
 
-impl UiState {
+impl GuiAppState {
     #[must_use]
     pub fn build_render_request(&self, pixel_rect: PixelRect) -> FractalConfig {
         let colour_map = mandelbrot_colour_map_factory(self.colour_map_kind, self.max_iterations);
@@ -88,7 +90,7 @@ mod tests {
 
     #[test]
     fn changing_colour_map_kind_triggers_should_submit() {
-        let mut ui_state = UiState::default();
+        let mut ui_state = GuiAppState::default();
         let pixel_rect = create_pixel_rect(100, 100);
 
         // Submit initial request

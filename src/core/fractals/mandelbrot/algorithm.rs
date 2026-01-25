@@ -3,7 +3,7 @@ use crate::core::data::complex::Complex;
 use crate::core::data::complex_rect::ComplexRect;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
-use crate::core::fractals::mandelbrot::errors::MandelbrotError;
+use crate::core::fractals::mandelbrot::errors::mandelbrot::MandelbrotError;
 use crate::core::util::pixel_to_complex_coords::{
     PixelToComplexCoordsError, pixel_to_complex_coords,
 };

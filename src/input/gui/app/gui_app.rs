@@ -2,8 +2,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use egui::Context;
 use egui_winit::State as EguiWinitState;
-use super::{GuiEvent, UiState};
-use crate::{core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds, input::gui::ports::presenter::GuiPresenterPort};
+use crate::input::gui::app::events::gui::GuiEvent;
+use crate::input::gui::app::state::GuiAppState;
+use crate::{core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds, input::gui::app::ports::presenter::GuiPresenterPort};
 use crate::presenters::pixels::presenter::PixelsPresenter;
 use crate::controllers::interactive::InteractiveController;
 use crate::core::data::pixel_rect::PixelRect;
@@ -15,23 +16,23 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-struct App<T: GuiPresenterPort>
+pub struct GuiApp<T: GuiPresenterPort>
 {
     width: u32,
     height: u32,
-    scale_factor: f64,
+    pub scale_factor: f64,
     presenter: T,
-    controller: InteractiveController,
-    ui_state: UiState,
+    pub controller: InteractiveController,
+    ui_state: GuiAppState,
     last_render_duration: Option<Duration>,
     last_error_message: Option<String>,
-    egui_ctx: Context,
-    egui_state: EguiWinitState,
+    pub egui_ctx: Context,
+    pub egui_state: EguiWinitState,
 }
 
-impl<T: GuiPresenterPort> App<T>
+impl<T: GuiPresenterPort> GuiApp<T>
 {
-    fn new(
+    pub fn new(
         window: &'static Window,
         event_loop: &EventLoop<GuiEvent>,
         presenter: T,
@@ -55,7 +56,7 @@ impl<T: GuiPresenterPort> App<T>
             scale_factor,
             presenter,
             controller,
-            ui_state: UiState::default(),
+            ui_state: GuiAppState::default(),
             last_render_duration: None,
             last_error_message: None,
             egui_ctx,
@@ -63,11 +64,11 @@ impl<T: GuiPresenterPort> App<T>
         }
     }
 
-    fn render(&mut self, egui_output: egui::FullOutput) -> Result<(), pixels::Error> {
+    pub fn render(&mut self, egui_output: egui::FullOutput) -> Result<(), pixels::Error> {
         self.presenter.render(egui_output, &self.egui_ctx, self.ui_state.latest_submitted_generation)
     }
 
-    fn resize(&mut self, width: u32, height: u32) {
+    pub fn resize(&mut self, width: u32, height: u32) {
         self.width = width;
         self.height = height;
 
@@ -78,7 +79,7 @@ impl<T: GuiPresenterPort> App<T>
         self.presenter.resize(width, height);
     }
 
-    fn submit_render_request_if_needed(&mut self) {
+    pub fn submit_render_request_if_needed(&mut self) {
         if self.width < 1 || self.height < 1 {
             return;
         }
@@ -104,7 +105,7 @@ impl<T: GuiPresenterPort> App<T>
         }
     }
 
-    fn update_ui(&mut self, window: &Window) -> egui::FullOutput {
+    pub fn update_ui(&mut self, window: &Window) -> egui::FullOutput {
         let raw_input = self.egui_state.take_egui_input(window);
 
         self.egui_ctx.run(raw_input, |ctx| {
@@ -172,118 +173,8 @@ impl<T: GuiPresenterPort> App<T>
         })
     }
 
-    /// Handles a window event, forwarding it to egui first.
-    ///
-    /// Returns (consumed, repaint) where:
-    /// - consumed: egui wants exclusive use of the event
-    /// - repaint: egui wants a redraw (e.g., hover state changed)
-    fn handle_window_event(&mut self, window: &Window, event: &WindowEvent) -> (bool, bool) {
+    pub fn handle_window_event(&mut self, window: &Window, event: &WindowEvent) -> (bool, bool) {
         let response = self.egui_state.on_window_event(window, event);
         (response.consumed, response.repaint)
     }
-}
-
-/// This function does not return until the window is closed.
-pub fn run_gui() {
-    let event_loop = EventLoopBuilder::<GuiEvent>::with_user_event()
-        .build()
-        .expect("Failed to create event loop");
-
-    let event_loop_proxy = event_loop.create_proxy();
-
-    let window: &'static Window = Box::leak(Box::new(
-        WindowBuilder::new()
-            .with_title("Fractal Explorer")
-            .with_inner_size(LogicalSize::new(800.0, 600.0))
-            .with_min_inner_size(LogicalSize::new(200.0, 200.0))
-            .build(&event_loop)
-            .expect("Failed to create window"),
-    ));
-
-    let presenter = PixelsPresenter::new(window, event_loop_proxy);
-    let controller = InteractiveController::new(presenter.share_adapter());
-    let mut app = App::new(window, &event_loop, presenter, controller);
-    let mut redraw_pending = true;
-
-    event_loop
-        .run(|event, elwt| {
-            match event {
-                Event::UserEvent(GuiEvent::Wake) => {
-                    redraw_pending = true;
-                }
-                Event::WindowEvent {
-                    ref event,
-                    window_id,
-                } if window_id == window.id() => {
-                    // Forward event to egui first
-                    let (egui_consumed, egui_repaint) = app.handle_window_event(window, event);
-
-                    if egui_repaint {
-                        redraw_pending = true;
-                    }
-
-                    // If egui consumed the event, skip our handling
-                    // (except for events we always need to handle)
-                    match event {
-                        WindowEvent::CloseRequested => {
-                            app.controller.shutdown();
-                            elwt.exit();
-                        }
-                        WindowEvent::RedrawRequested => {
-                            redraw_pending = false;
-
-                            // Run egui frame
-                            let egui_output = app.update_ui(window);
-                            app.submit_render_request_if_needed();
-
-                            // Handle egui platform output (e.g., clipboard, cursor changes)
-                            app.egui_state.handle_platform_output(
-                                window,
-                                egui_output.platform_output.clone(),
-                            );
-
-                            // Check if egui wants a repaint
-                            if egui_output
-                                .viewport_output
-                                .values()
-                                .any(|v| v.repaint_delay.is_zero())
-                            {
-                                redraw_pending = true;
-                            }
-
-                            // Render the frame with egui overlay
-                            if let Err(e) = app.render(egui_output) {
-                                eprintln!("Render error: {e}");
-                                elwt.exit();
-                            }
-                        }
-                        WindowEvent::Resized(size) => {
-                            app.resize(size.width, size.height);
-                            redraw_pending = true;
-                        }
-                        WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
-                            app.scale_factor = *scale_factor;
-                            app.egui_ctx.set_pixels_per_point(*scale_factor as f32);
-                            // Get the new physical size after scale factor change
-                            let size = window.inner_size();
-                            app.resize(size.width, size.height);
-                            redraw_pending = true;
-                        }
-                        _ => {}
-                    }
-
-                    // Suppress unused variable warning - consumed will be used
-                    // when we add pan/zoom to avoid passing clicks through UI
-                    let _ = egui_consumed;
-                }
-                Event::AboutToWait => {
-                    // Only request redraw if state changed
-                    if redraw_pending {
-                        window.request_redraw();
-                    }
-                }
-                _ => {}
-            }
-        })
-        .expect("Event loop error");
 }

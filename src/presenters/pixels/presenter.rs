@@ -7,11 +7,11 @@ use egui::Context as EguiContext;
 use egui_wgpu::Renderer as EguiRenderer;
 use winit::event_loop::EventLoopProxy;
 use winit::window::Window;
-use crate::controllers::interactive::ports::presenter_port::PresenterPort;
+use crate::controllers::interactive::ports::presenter::InteractiveControllerPresenterPort;
 use crate::controllers::interactive::data::frame_data::FrameData;
-use crate::controllers::interactive::events::render_event::RenderEvent;
-use crate::input::gui::ports::presenter::GuiPresenterPort;
-use crate::input::gui::GuiEvent;
+use crate::controllers::interactive::events::render::RenderEvent;
+use crate::input::gui::app::events::gui::GuiEvent;
+use crate::input::gui::app::ports::presenter::GuiPresenterPort;
 use crate::presenters::pixels::adapter::PixelsAdapter;
 
 pub struct PixelsPresenter {
@@ -52,8 +52,8 @@ impl GuiPresenterPort for PixelsPresenter {
         }
     }
 
-    fn share_adapter(&self) -> Arc<dyn PresenterPort> {
-        Arc::clone(&self.adapter) as Arc<dyn PresenterPort>
+    fn share_adapter(&self) -> Arc<dyn InteractiveControllerPresenterPort> {
+        Arc::clone(&self.adapter) as Arc<dyn InteractiveControllerPresenterPort>
     }
 
     fn render(&mut self, egui_output: egui::FullOutput, egui_ctx: &EguiContext, requested_generation: u64) -> Result<(), pixels::Error> {

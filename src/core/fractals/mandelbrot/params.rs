@@ -1,4 +1,4 @@
-use crate::core::{data::complex_rect::ComplexRect, fractals::mandelbrot::errors::MandelbrotError};
+use crate::core::{data::complex_rect::ComplexRect, fractals::mandelbrot::errors::mandelbrot::MandelbrotError};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct MandelbrotParams {

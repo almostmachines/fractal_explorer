@@ -1,14 +1,14 @@
 use std::sync::Mutex;
 use winit::event_loop::EventLoopProxy;
-use crate::controllers::interactive::{events::render_event::RenderEvent, ports::presenter_port::PresenterPort};
-use crate::input::gui::GuiEvent;
+use crate::controllers::interactive::{events::render::RenderEvent, ports::presenter::InteractiveControllerPresenterPort};
+use crate::input::gui::app::events::gui::GuiEvent;
 
 pub struct PixelsAdapter {
     render_event: Mutex<Option<RenderEvent>>,
     event_loop_proxy: EventLoopProxy<GuiEvent>,
 }
 
-impl PresenterPort for PixelsAdapter {
+impl InteractiveControllerPresenterPort for PixelsAdapter {
     fn present(&self, event: RenderEvent) {
         *self.render_event.lock().unwrap() = Some(event);
         let _ = self.event_loop_proxy.send_event(GuiEvent::Wake);

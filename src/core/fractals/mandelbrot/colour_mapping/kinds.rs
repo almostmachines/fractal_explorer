@@ -1,6 +1,8 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default)]
 pub enum MandelbrotColourMapKinds {
     BlueWhiteGradient,
+    #[default]
     FireGradient,
 }
 
@@ -13,12 +15,6 @@ impl MandelbrotColourMapKinds {
             Self::FireGradient => "Fire gradient",
             Self::BlueWhiteGradient => "Blue-white gradient",
         }
-    }
-}
-
-impl Default for MandelbrotColourMapKinds {
-    fn default() -> Self {
-        Self::FireGradient
     }
 }
 
