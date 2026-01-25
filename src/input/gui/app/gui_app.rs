@@ -9,13 +9,14 @@ use crate::controllers::interactive::InteractiveController;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
 use winit::{
-    event::WindowEvent,
+    event::{Event, WindowEvent},
     event_loop::EventLoop,
     window::Window,
 };
 
 pub struct GuiApp<T: GuiPresenterPort>
 {
+    window: &'static Window,
     width: u32,
     height: u32,
     pub scale_factor: f64,
@@ -49,6 +50,7 @@ impl<T: GuiPresenterPort> GuiApp<T>
         );
 
         Self {
+            window,
             width: size.width,
             height: size.height,
             scale_factor,
@@ -174,5 +176,89 @@ impl<T: GuiPresenterPort> GuiApp<T>
     pub fn handle_window_event(&mut self, window: &Window, event: &WindowEvent) -> (bool, bool) {
         let response = self.egui_state.on_window_event(window, event);
         (response.consumed, response.repaint)
+    }
+
+    pub fn run(mut self, event_loop: EventLoop<GuiEvent>) {
+        event_loop
+            .run(move |event, elwt| {
+                match event {
+                    Event::UserEvent(GuiEvent::Wake) => {
+                        self.ui_state.redraw_pending = true;
+                    }
+                    Event::WindowEvent {
+                        ref event,
+                        window_id,
+                    } if window_id == self.window.id() => {
+                        // Forward event to egui first
+                        let (egui_consumed, egui_repaint) = self.handle_window_event(self.window, event);
+
+                        if egui_repaint {
+                            self.ui_state.redraw_pending = true;
+                        }
+
+                        // If egui consumed the event, skip our handling
+                        // (except for events we always need to handle)
+                        match event {
+                            WindowEvent::CloseRequested => {
+                                self.controller.shutdown();
+                                elwt.exit();
+                            }
+                            WindowEvent::RedrawRequested => {
+                                self.ui_state.redraw_pending = false;
+
+                                // Run egui frame
+                                let egui_output = self.update_ui(self.window);
+                                self.submit_render_request_if_needed();
+
+                                // Handle egui platform output (e.g., clipboard, cursor changes)
+                                self.egui_state.handle_platform_output(
+                                    self.window,
+                                    egui_output.platform_output.clone(),
+                                );
+
+                                // Check if egui wants a repaint
+                                if egui_output
+                                    .viewport_output
+                                    .values()
+                                    .any(|v| v.repaint_delay.is_zero())
+                                {
+                                    self.ui_state.redraw_pending = true;
+                                }
+
+                                // Render the frame with egui overlay
+                                if let Err(e) = self.render(egui_output) {
+                                    eprintln!("Render error: {e}");
+                                    elwt.exit();
+                                }
+                            }
+                            WindowEvent::Resized(size) => {
+                                self.resize(size.width, size.height);
+                                self.ui_state.redraw_pending = true;
+                            }
+                            WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+                                self.scale_factor = *scale_factor;
+                                self.egui_ctx.set_pixels_per_point(*scale_factor as f32);
+                                // Get the new physical size after scale factor change
+                                let size = self.window.inner_size();
+                                self.resize(size.width, size.height);
+                                self.ui_state.redraw_pending = true;
+                            }
+                            _ => {}
+                        }
+
+                        // Suppress unused variable warning - consumed will be used
+                        // when we add pan/zoom to avoid passing clicks through UI
+                        let _ = egui_consumed;
+                    }
+                    Event::AboutToWait => {
+                        // Only request redraw if state changed
+                        if self.ui_state.redraw_pending {
+                            self.window.request_redraw();
+                        }
+                    }
+                    _ => {}
+                }
+            })
+            .expect("Event loop error");
     }
 }
