@@ -126,6 +126,7 @@ impl<T: GuiPresenterPort> GuiApp<T>
 
                     ui.horizontal(|ui| {
                         ui.label("Colour map:");
+
                         egui::ComboBox::from_id_source("mandelbrot_colour_map")
                             .selected_text(self.ui_state.colour_map_kind.display_name())
                             .show_ui(ui, |ui| {
@@ -141,12 +142,15 @@ impl<T: GuiPresenterPort> GuiApp<T>
 
                     ui.separator();
                     ui.label("View region:");
+
                     let top_left = self.ui_state.region.top_left();
                     let bottom_right = self.ui_state.region.bottom_right();
+
                     ui.label(format!(
                         "Real: [{:.4}, {:.4}]",
                         top_left.real, bottom_right.real
                     ));
+
                     ui.label(format!(
                         "Imag: [{:.4}, {:.4}]",
                         top_left.imag, bottom_right.imag
@@ -158,13 +162,16 @@ impl<T: GuiPresenterPort> GuiApp<T>
 
                     ui.separator();
                     ui.label(format!("Window size: {}x{}", self.width, self.height));
+
                     ui.label(format!(
                         "Latest generation: {}",
                         self.ui_state.latest_submitted_generation
                     ));
+
                     if let Some(render_duration) = self.last_render_duration {
                         ui.label(format!("Last render: {} ms", render_duration.as_millis()));
                     }
+                    
                     if let Some(message) = &self.last_error_message {
                         ui.separator();
                         ui.colored_label(egui::Color32::LIGHT_RED, message);
@@ -175,6 +182,7 @@ impl<T: GuiPresenterPort> GuiApp<T>
 
     pub fn handle_window_event(&mut self, window: &Window, event: &WindowEvent) -> (bool, bool) {
         let response = self.egui_state.on_window_event(window, event);
+
         (response.consumed, response.repaint)
     }
 
