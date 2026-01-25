@@ -8,5 +8,5 @@ mod storage;
 pub use controllers::mandelbrot::mandelbrot_controller;
 
 #[cfg(feature = "gui")]
-pub use input::gui::command::gui_command;
-pub use presenters::pixels::factory;
+pub use input::gui::commands::run_gui::RunGuiCommand;
+pub use presenters::pixels::factory::PixelsPresenterFactory;

@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
 use winit::{dpi::LogicalSize, event_loop::EventLoopBuilder, window::{Window, WindowBuilder}};
-use crate::{controllers::interactive::InteractiveController, input::gui::{app::{events::gui::GuiEvent, gui_app::GuiApp, ports::presenter::GuiPresenterPort}, command::ports::presenter_factory::GuiPresenterFactoryPort}};
+use crate::{controllers::interactive::InteractiveController, input::gui::{app::{events::gui::GuiEvent, gui_app::GuiApp, ports::presenter::GuiPresenterPort}, commands::ports::presenter_factory::GuiPresenterFactoryPort}};
 
-pub struct GuiCommand<F, P>
+pub struct RunGuiCommand<F, P>
 where
     P: GuiPresenterPort,
     F: GuiPresenterFactoryPort<P>,
@@ -12,7 +12,7 @@ where
     _phantom: PhantomData<fn() -> P>,
 }
 
-impl<F, P> GuiCommand<F, P>
+impl<F, P> RunGuiCommand<F, P>
 where
     P: GuiPresenterPort,
     F: GuiPresenterFactoryPort<P>,
@@ -21,7 +21,7 @@ where
         Self { presenter_factory, _phantom: PhantomData }
     }
 
-    pub fn run(&self) {
+    pub fn execute(&self) {
         let event_loop = EventLoopBuilder::<GuiEvent>::with_user_event()
             .build()
             .expect("Failed to create event loop");

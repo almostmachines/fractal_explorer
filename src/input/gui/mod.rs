@@ -4,4 +4,4 @@
 //! pixels for framebuffer rendering, and egui for UI controls.
 
 pub mod app;
-pub mod command;
+pub mod commands;

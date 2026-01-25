@@ -1,6 +1,6 @@
 fn main() {
-    let presenter_factory = fractal_explorer::factory::PixelsPresenterFactory {};
-    let command = fractal_explorer::gui_command::GuiCommand::new(presenter_factory);
+    let presenter_factory = fractal_explorer::PixelsPresenterFactory::new();
+    let command = fractal_explorer::RunGuiCommand::new(presenter_factory);
 
-    command.run();
+    command.execute();
 }
