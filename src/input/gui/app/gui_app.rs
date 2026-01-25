@@ -189,15 +189,12 @@ impl<T: GuiPresenterPort> GuiApp<T>
                         ref event,
                         window_id,
                     } if window_id == self.window.id() => {
-                        // Forward event to egui first
                         let (egui_consumed, egui_repaint) = self.handle_window_event(self.window, event);
 
                         if egui_repaint {
                             self.ui_state.redraw_pending = true;
                         }
 
-                        // If egui consumed the event, skip our handling
-                        // (except for events we always need to handle)
                         match event {
                             WindowEvent::CloseRequested => {
                                 self.controller.shutdown();
@@ -206,17 +203,15 @@ impl<T: GuiPresenterPort> GuiApp<T>
                             WindowEvent::RedrawRequested => {
                                 self.ui_state.redraw_pending = false;
 
-                                // Run egui frame
                                 let egui_output = self.update_ui(self.window);
+
                                 self.submit_render_request_if_needed();
 
-                                // Handle egui platform output (e.g., clipboard, cursor changes)
                                 self.egui_state.handle_platform_output(
                                     self.window,
                                     egui_output.platform_output.clone(),
                                 );
 
-                                // Check if egui wants a repaint
                                 if egui_output
                                     .viewport_output
                                     .values()
@@ -225,7 +220,6 @@ impl<T: GuiPresenterPort> GuiApp<T>
                                     self.ui_state.redraw_pending = true;
                                 }
 
-                                // Render the frame with egui overlay
                                 if let Err(e) = self.render(egui_output) {
                                     eprintln!("Render error: {e}");
                                     elwt.exit();
@@ -251,7 +245,6 @@ impl<T: GuiPresenterPort> GuiApp<T>
                         let _ = egui_consumed;
                     }
                     Event::AboutToWait => {
-                        // Only request redraw if state changed
                         if self.ui_state.redraw_pending {
                             self.window.request_redraw();
                         }
