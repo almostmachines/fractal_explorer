@@ -3,10 +3,10 @@ mod controllers;
 mod core;
 #[cfg(feature = "gui")]
 mod input;
-mod storage;
 
-pub use controllers::mandelbrot::mandelbrot_controller;
-
+pub use controllers::cli::test::cli_test::CliTestController;
+pub use presenters::file::ppm::PpmFilePresenter;
 #[cfg(feature = "gui")]
 pub use input::gui::commands::run_gui::RunGuiCommand;
+#[cfg(feature = "gui")]
 pub use presenters::pixels::factory::PixelsPresenterFactory;

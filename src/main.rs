@@ -1,5 +1,11 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    fractal_explorer::mandelbrot_controller()
+    let presenter = fractal_explorer::PpmFilePresenter::new();
+    let mut controller = fractal_explorer::CliTestController::new(presenter);
+
+    controller.generate()?;
+    controller.write("output/mandelbrot.ppm")?;
+
+    Ok(())
 }
 
 #[cfg(test)]
