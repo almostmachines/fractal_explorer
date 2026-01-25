@@ -5,15 +5,13 @@ use egui_winit::State as EguiWinitState;
 use crate::input::gui::app::events::gui::GuiEvent;
 use crate::input::gui::app::state::GuiAppState;
 use crate::{core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds, input::gui::app::ports::presenter::GuiPresenterPort};
-use crate::presenters::pixels::presenter::PixelsPresenter;
 use crate::controllers::interactive::InteractiveController;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
 use winit::{
-    dpi::LogicalSize,
-    event::{Event, WindowEvent},
-    event_loop::{EventLoop, EventLoopBuilder},
-    window::{Window, WindowBuilder},
+    event::WindowEvent,
+    event_loop::EventLoop,
+    window::Window,
 };
 
 pub struct GuiApp<T: GuiPresenterPort>
