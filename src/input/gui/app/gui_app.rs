@@ -240,8 +240,9 @@ impl<T: GuiPresenterPort> GuiApp<T>
                             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                                 self.scale_factor = *scale_factor;
                                 self.egui_ctx.set_pixels_per_point(*scale_factor as f32);
-                                // Get the new physical size after scale factor change
+
                                 let size = self.window.inner_size();
+
                                 self.resize(size.width, size.height);
                                 self.ui_state.redraw_pending = true;
                             }
