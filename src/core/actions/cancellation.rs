@@ -1,44 +1,5 @@
-/// Cooperative cancellation primitives for long-running operations.
-///
-/// This module provides allocation-free cancellation tokens suitable for use
-/// in tight loops. The design allows callers to periodically check if work
-/// should be cancelled without incurring heap allocations.
-///
-/// # Cancellation Semantics
-///
-/// Cancellation is **expected control flow**, not an error condition. When an
-/// operation returns [`Cancelled`], callers should:
-///
-/// - Silently discard the incomplete result
-/// - **Not** propagate this as a `RenderEvent::Error`
-/// - Allow the next render request to proceed normally
-///
-/// This distinction matters because cancellation typically occurs when a newer
-/// render request supersedes an in-progress one (e.g., during rapid panning).
-/// Users should not see error messages for this normal interaction pattern.
-///
-/// # Usage Pattern
-///
-/// Actions should check the cancellation token periodically using
-/// [`CANCEL_CHECK_INTERVAL_PIXELS`] to balance responsiveness against overhead:
-///
-/// ```ignore
-/// for (i, pixel) in pixels.iter().enumerate() {
-///     if i % CANCEL_CHECK_INTERVAL_PIXELS == 0 && token.is_cancelled() {
-///         return Err(Cancelled);
-///     }
-///     // ... process pixel ...
-/// }
-/// ```
-
-/// How often (in pixels) to check for cancellation during iteration loops.
-/// Balances responsiveness against check overhead.
 pub const CANCEL_CHECK_INTERVAL_PIXELS: usize = 1024;
 
-/// Marker type indicating an operation was cancelled.
-///
-/// Used as explicit control flow to distinguish cancellation from other
-/// error conditions. This is a zero-sized type with no runtime overhead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Cancelled;
 
@@ -50,19 +11,10 @@ impl std::fmt::Display for Cancelled {
 
 impl std::error::Error for Cancelled {}
 
-/// Token that can be polled to check if an operation should be cancelled.
-///
-/// Implementations must be thread-safe (`Send + Sync`) to support parallel
-/// execution. The `is_cancelled` method should be cheap to call repeatedly.
 pub trait CancelToken: Send + Sync {
-    /// Returns `true` if cancellation has been requested.
     fn is_cancelled(&self) -> bool;
 }
 
-/// A cancellation token that never signals cancellation.
-///
-/// Use this for call sites that don't support cancellation, avoiding the
-/// need for `Option<&dyn CancelToken>` or similar patterns.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct NeverCancel;
 
@@ -73,15 +25,6 @@ impl CancelToken for NeverCancel {
     }
 }
 
-/// Blanket implementation allowing closures to serve as cancellation tokens.
-///
-/// This enables flexible cancellation sources without requiring new types:
-///
-/// ```ignore
-/// let flag = AtomicBool::new(false);
-/// let token = || flag.load(Ordering::Relaxed);
-/// // token can now be used as a CancelToken
-/// ```
 impl<F> CancelToken for F
 where
     F: Fn() -> bool + Send + Sync,
