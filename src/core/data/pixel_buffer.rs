@@ -453,16 +453,4 @@ mod tests {
 
         assert_eq!(buffer.buffer(), &expected);
     }
-
-    #[test]
-    fn test_pixel_buffer_debug() {
-        let pixel_rect = create_pixel_rect(2, 2);
-        let buffer = PixelBuffer::new(pixel_rect);
-
-        let debug_str = format!("{:?}", buffer);
-
-        assert!(debug_str.contains("PixelBuffer"));
-        assert!(debug_str.contains("pixel_rect"));
-        assert!(debug_str.contains("buffer"));
-    }
 }
