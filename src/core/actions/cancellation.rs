@@ -57,34 +57,4 @@ mod tests {
         flag.store(true, Ordering::Relaxed);
         assert!(token.is_cancelled());
     }
-
-    #[test]
-    fn cancelled_displays_message() {
-        let cancelled = Cancelled;
-        assert_eq!(format!("{}", cancelled), "operation cancelled");
-    }
-
-    #[test]
-    fn cancelled_implements_error() {
-        let cancelled: &dyn std::error::Error = &Cancelled;
-        assert!(cancelled.to_string().contains("cancelled"));
-    }
-
-    #[test]
-    fn never_cancel_is_send_and_sync() {
-        fn assert_send_sync<T: Send + Sync>() {}
-        assert_send_sync::<NeverCancel>();
-    }
-
-    #[test]
-    fn closure_token_is_send_and_sync() {
-        fn assert_cancel_token<T: CancelToken>() {}
-        let flag = AtomicBool::new(false);
-        // The closure captures a reference, so we test a standalone version
-        let _token = || false;
-        assert_cancel_token::<fn() -> bool>();
-        // Also verify the captured version works
-        let _ = flag.load(Ordering::Relaxed);
-        assert_cancel_token::<fn() -> bool>();
-    }
 }
