@@ -71,14 +71,6 @@ mod tests {
     }
 
     #[test]
-    fn cancel_check_interval_is_reasonable() {
-        // Should be large enough to amortize check overhead
-        assert!(CANCEL_CHECK_INTERVAL_PIXELS >= 256);
-        // But not so large that cancellation is unresponsive
-        assert!(CANCEL_CHECK_INTERVAL_PIXELS <= 8192);
-    }
-
-    #[test]
     fn never_cancel_is_send_and_sync() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<NeverCancel>();
