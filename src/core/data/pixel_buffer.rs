@@ -424,12 +424,15 @@ mod tests {
         buffer
             .set_pixel(Point { x: 0, y: 0 }, Colour { r: 255, g: 0, b: 0 })
             .unwrap();
+
         buffer
             .set_pixel(Point { x: 1, y: 0 }, Colour { r: 0, g: 255, b: 0 })
             .unwrap();
+
         buffer
             .set_pixel(Point { x: 0, y: 1 }, Colour { r: 0, g: 0, b: 255 })
             .unwrap();
+
         buffer
             .set_pixel(
                 Point { x: 1, y: 1 },
@@ -447,6 +450,7 @@ mod tests {
             0, 0, 255, // (0,1) blue
             255, 255, 0, // (1,1) yellow
         ];
+
         assert_eq!(buffer.buffer(), &expected);
     }
 
