@@ -305,7 +305,6 @@ mod tests {
         let original_data: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
         let mut buffer = PixelBuffer::from_data(pixel_rect, original_data.clone()).unwrap();
         let wrong_data: Vec<u8> = vec![255; 6];
-
         let _ = buffer.set_buffer(wrong_data);
 
         assert_eq!(buffer.buffer(), &original_data);
@@ -316,11 +315,9 @@ mod tests {
         let pixel_rect = create_pixel_rect(3, 3);
         let mut buffer = PixelBuffer::new(pixel_rect);
         let red = Colour { r: 255, g: 0, b: 0 };
-
         let result = buffer.set_pixel(Point { x: 1, y: 1 }, red);
 
         assert!(result.is_ok());
-        // Index for (1,1) in a 3x3 grid: (1 * 3 + 1) * 3 = 12
         assert_eq!(buffer.buffer()[12], 255);
         assert_eq!(buffer.buffer()[13], 0);
         assert_eq!(buffer.buffer()[14], 0);
@@ -331,7 +328,6 @@ mod tests {
         let pixel_rect = create_pixel_rect(3, 3);
         let mut buffer = PixelBuffer::new(pixel_rect);
         let green = Colour { r: 0, g: 255, b: 0 };
-
         let result = buffer.set_pixel(Point { x: 0, y: 0 }, green);
 
         assert!(result.is_ok());
@@ -345,12 +341,9 @@ mod tests {
         let pixel_rect = create_pixel_rect(3, 3);
         let mut buffer = PixelBuffer::new(pixel_rect);
         let blue = Colour { r: 0, g: 0, b: 255 };
-
-        // Bottom right is at (2, 2) for a rect from (0,0) to (3,3) with width/height 3
         let result = buffer.set_pixel(Point { x: 2, y: 2 }, blue);
 
         assert!(result.is_ok());
-        // Index for (2,2) in a 3x3 grid: (2 * 3 + 2) * 3 = 24
         assert_eq!(buffer.buffer()[24], 0);
         assert_eq!(buffer.buffer()[25], 0);
         assert_eq!(buffer.buffer()[26], 255);
@@ -360,6 +353,7 @@ mod tests {
     fn test_set_pixel_with_offset_rect() {
         let pixel_rect = create_offset_pixel_rect(10, 20, 3, 3);
         let mut buffer = PixelBuffer::new(pixel_rect);
+
         let white = Colour {
             r: 255,
             g: 255,
@@ -369,7 +363,6 @@ mod tests {
         let result = buffer.set_pixel(Point { x: 11, y: 21 }, white);
 
         assert!(result.is_ok());
-        // Relative position is (1, 1), index: (1 * 3 + 1) * 3 = 12
         assert_eq!(buffer.buffer()[12], 255);
         assert_eq!(buffer.buffer()[13], 255);
         assert_eq!(buffer.buffer()[14], 255);
@@ -380,7 +373,6 @@ mod tests {
         let pixel_rect = create_pixel_rect(3, 3);
         let mut buffer = PixelBuffer::new(pixel_rect);
         let colour = Colour { r: 255, g: 0, b: 0 };
-
         let result = buffer.set_pixel(Point { x: 5, y: 1 }, colour);
 
         assert_eq!(
@@ -397,7 +389,6 @@ mod tests {
         let pixel_rect = create_pixel_rect(3, 3);
         let mut buffer = PixelBuffer::new(pixel_rect);
         let colour = Colour { r: 255, g: 0, b: 0 };
-
         let result = buffer.set_pixel(Point { x: 1, y: 5 }, colour);
 
         assert_eq!(
@@ -414,7 +405,6 @@ mod tests {
         let pixel_rect = create_pixel_rect(3, 3);
         let mut buffer = PixelBuffer::new(pixel_rect);
         let colour = Colour { r: 255, g: 0, b: 0 };
-
         let result = buffer.set_pixel(Point { x: -1, y: -1 }, colour);
 
         assert_eq!(
