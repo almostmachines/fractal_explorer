@@ -179,6 +179,7 @@ mod tests {
                 height: 100.0
             })
         );
+
         assert_eq!(
             rect_negative_width,
             Err(ComplexRectError::InvalidSize {
@@ -186,6 +187,7 @@ mod tests {
                 height: 10.0
             })
         );
+
         assert_eq!(
             rect_zero_height,
             Err(ComplexRectError::InvalidSize {
@@ -193,6 +195,7 @@ mod tests {
                 height: 0.0
             })
         );
+
         assert_eq!(
             rect_negative_height,
             Err(ComplexRectError::InvalidSize {
@@ -200,6 +203,7 @@ mod tests {
                 height: -10.0
             })
         );
+
         assert_eq!(
             rect_zero_width_and_height,
             Err(ComplexRectError::InvalidSize {
@@ -207,6 +211,7 @@ mod tests {
                 height: 0.0
             })
         );
+
         assert_eq!(
             rect_negative_width_and_height,
             Err(ComplexRectError::InvalidSize {
@@ -252,26 +257,32 @@ mod tests {
             real: 50.0,
             imag: 50.0
         }));
+
         assert!(rect.contains_point(Complex {
             real: -10.0,
             imag: 0.0
         }));
+
         assert!(rect.contains_point(Complex {
             real: 100.0,
             imag: 200.0
         }));
+
         assert!(!rect.contains_point(Complex {
             real: 101.0,
             imag: 50.0
         }));
+
         assert!(!rect.contains_point(Complex {
             real: -11.0,
             imag: 50.0
         }));
+
         assert!(!rect.contains_point(Complex {
             real: 50.0,
             imag: -6.0
         }));
+
         assert!(!rect.contains_point(Complex {
             real: 50.0,
             imag: 201.0
