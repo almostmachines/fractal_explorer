@@ -2,7 +2,7 @@ use crate::core::data::pixel_rect::PixelRect;
 use std::num::NonZeroU32;
 
 pub fn calculate_bands_in_pixel_rect(max_bands: NonZeroU32, pixel_rect: PixelRect) -> u32 {
-    if pixel_rect.height() == 2 {
+    if pixel_rect.height() <= 2 {
         1
     } else if max_bands.get() > (pixel_rect.height() / 2) {
         pixel_rect.height() / 2
@@ -15,6 +15,16 @@ pub fn calculate_bands_in_pixel_rect(max_bands: NonZeroU32, pixel_rect: PixelRec
 mod tests {
     use super::*;
     use crate::core::data::point::Point;
+
+    #[test]
+    fn test_height_1_gives_1_band() {
+        let bands = calculate_bands_in_pixel_rect(
+            NonZeroU32::new(10).unwrap(),
+            PixelRect::new(Point { x: 0, y: 0 }, Point { x: 0, y: 0 }).unwrap(),
+        );
+
+        assert_eq!(bands, 1);
+    }
 
     #[test]
     fn test_height_2_gives_1_band() {
