@@ -11,7 +11,10 @@ fn pixel_rect_to_buffer_size(pixel_rect: PixelRect) -> usize {
 #[derive(Debug, Clone, PartialEq)]
 pub enum PixelBufferError {
     #[allow(dead_code)]
-    PixelOutsideBounds { pixel: Point, pixel_rect: PixelRect },
+    PixelOutsideBounds {
+        pixel: Point,
+        pixel_rect: PixelRect
+    },
     BoundsMismatch {
         pixel_rect_size: usize,
         buffer_size: usize,
