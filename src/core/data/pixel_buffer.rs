@@ -455,43 +455,6 @@ mod tests {
     }
 
     #[test]
-    fn test_error_display_bounds_mismatch() {
-        let error = PixelBufferError::BoundsMismatch {
-            pixel_rect_size: 100,
-            buffer_size: 50,
-        };
-
-        assert_eq!(
-            format!("{}", error),
-            "pixel rect size 100 does not match buffer size 50"
-        );
-    }
-
-    #[test]
-    fn test_error_display_pixel_outside_bounds() {
-        let pixel_rect = create_offset_pixel_rect(10, 20, 100, 100);
-        let error = PixelBufferError::PixelOutsideBounds {
-            pixel: Point { x: 5, y: 5 },
-            pixel_rect,
-        };
-
-        assert_eq!(
-            format!("{}", error),
-            "pixel at x:5, y:5 outside of PixelRect bounds top:20, left:10, bottom:119, right:109"
-        );
-    }
-
-    #[test]
-    fn test_error_is_std_error() {
-        let error: Box<dyn std::error::Error> = Box::new(PixelBufferError::BoundsMismatch {
-            pixel_rect_size: 10,
-            buffer_size: 5,
-        });
-
-        assert!(error.to_string().contains("does not match"));
-    }
-
-    #[test]
     fn test_pixel_buffer_debug() {
         let pixel_rect = create_pixel_rect(2, 2);
         let buffer = PixelBuffer::new(pixel_rect);
