@@ -10,7 +10,6 @@ fn pixel_rect_to_buffer_size(pixel_rect: PixelRect) -> usize {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PixelBufferError {
-    #[allow(dead_code)]
     PixelOutsideBounds {
         pixel: Point,
         pixel_rect: PixelRect
@@ -61,7 +60,6 @@ pub struct PixelBuffer {
 }
 
 impl PixelBuffer {
-    #[allow(dead_code)]
     #[must_use]
     pub fn new(pixel_rect: PixelRect) -> Self {
         let total_bytes = pixel_rect_to_buffer_size(pixel_rect);
@@ -98,13 +96,11 @@ impl PixelBuffer {
         &self.buffer
     }
 
-    #[allow(dead_code)]
     #[must_use]
     pub fn buffer_size(&self) -> usize {
         self.buffer.len()
     }
 
-    #[allow(dead_code)]
     pub fn set_buffer(&mut self, buffer: PixelBufferData) -> Result<(), PixelBufferError> {
         let buffer_size = pixel_rect_to_buffer_size(self.pixel_rect);
 
@@ -119,7 +115,6 @@ impl PixelBuffer {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub fn set_pixel(&mut self, pixel: Point, colour: Colour) -> Result<(), PixelBufferError> {
         if !self.pixel_rect.contains_point(pixel) {
             return Err(PixelBufferError::PixelOutsideBounds {
