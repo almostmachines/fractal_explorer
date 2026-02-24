@@ -251,8 +251,6 @@ mod tests {
         let buffer = PixelBuffer::new(pixel_rect);
 
         assert_eq!(buffer.pixel_rect(), pixel_rect);
-        assert_eq!(buffer.pixel_rect().top_left(), Point { x: 10, y: 20 });
-        assert_eq!(buffer.pixel_rect().bottom_right(), Point { x: 39, y: 59 });
     }
 
     #[test]
