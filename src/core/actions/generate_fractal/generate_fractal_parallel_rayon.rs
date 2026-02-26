@@ -7,15 +7,9 @@ use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlg
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
 
-/// Error type for cancelable fractal generation.
-///
-/// Distinguishes between algorithm failures and cancellation, allowing callers
-/// to handle each case appropriately (e.g., not displaying cancellation as errors).
 #[derive(Debug)]
 pub enum GenerateFractalError<E> {
-    /// The operation was cancelled before completion.
     Cancelled(Cancelled),
-    /// The fractal algorithm reported a failure.
     Algorithm(E),
 }
 
@@ -37,10 +31,6 @@ impl<E: std::error::Error + 'static> std::error::Error for GenerateFractalError<
     }
 }
 
-/// Generates fractal data in parallel using rayon's work-stealing scheduler.
-///
-/// This provides automatic load balancing and simpler API compared to manual threading.
-/// For cancel-aware generation, use [`generate_fractal_parallel_rayon_cancelable`].
 #[allow(dead_code)]
 pub fn generate_fractal_parallel_rayon<Alg>(
     pixel_rect: PixelRect,
@@ -51,25 +41,15 @@ where
     Alg::Success: Send,
     Alg::Failure: Send,
 {
-    // Delegate to the cancel-aware implementation with NeverCancel
     generate_fractal_parallel_rayon_cancelable_impl(pixel_rect, algorithm, &NeverCancel)
         .map_err(|e| match e {
             GenerateFractalError::Algorithm(alg_err) => alg_err,
             GenerateFractalError::Cancelled(_) => {
-                // NeverCancel never cancels, so this branch is unreachable
                 unreachable!("NeverCancel token should never signal cancellation")
             }
         })
 }
 
-/// Generates fractal data in parallel with cancellation support.
-///
-/// Like [`generate_fractal_parallel_rayon`], but accepts a cancellation token
-/// that can abort the computation early. Checks for cancellation at the start
-/// of each row and periodically within rows.
-///
-/// Returns [`GenerateFractalError::Cancelled`] if cancellation was requested,
-/// which should be handled as expected control flow (not an error to display).
 #[allow(dead_code)]
 pub fn generate_fractal_parallel_rayon_cancelable<Alg, C>(
     pixel_rect: PixelRect,
@@ -85,14 +65,6 @@ where
     generate_fractal_parallel_rayon_cancelable_impl(pixel_rect, algorithm, cancel)
 }
 
-/// Internal cancel-aware fractal generation implementation.
-///
-/// Processes rows in parallel, checking for cancellation at the start of each
-/// row and every [`CANCEL_CHECK_INTERVAL_PIXELS`] pixels within a row. Uses
-/// rayon's try combinators to abort promptly when cancellation is detected.
-///
-/// Returns row-major ordered results, matching the output format of
-/// [`generate_fractal_parallel_rayon`].
 #[allow(dead_code)]
 pub(crate) fn generate_fractal_parallel_rayon_cancelable_impl<Alg, C>(
     pixel_rect: PixelRect,
@@ -110,14 +82,12 @@ where
     let x_end = pixel_rect.bottom_right().x;
     let row_width = (x_end - x_start + 1) as usize;
 
-    // Process rows in parallel, each row checks cancellation at start and periodically
     let rows: Result<Vec<Vec<Alg::Success>>, GenerateFractalError<Alg::Failure>> = y_range
         .into_par_iter()
         .map(|y| {
             let mut row = Vec::with_capacity(row_width);
 
             for (i, x) in (x_start..=x_end).enumerate() {
-                // Check cancellation at row start (i == 0) and every N pixels
                 if i % CANCEL_CHECK_INTERVAL_PIXELS == 0 && cancel.is_cancelled() {
                     return Err(GenerateFractalError::Cancelled(Cancelled));
                 }
@@ -132,7 +102,6 @@ where
         })
         .collect();
 
-    // Flatten rows into row-major order
     rows.map(|r| r.into_iter().flatten().collect())
 }
 
@@ -221,8 +190,6 @@ mod tests {
         assert_eq!(rayon_results, sequential_results);
     }
 
-    // Tests for cancelable implementation
-
     #[test]
     fn test_cancelable_produces_same_results_when_not_cancelled() {
         let algorithm = StubSuccessAlgorithm {};
@@ -291,22 +258,18 @@ mod tests {
         use std::sync::atomic::AtomicUsize;
 
         let algorithm = StubSuccessAlgorithm {};
-        // Use a small rect that will require multiple polls
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 5, y: 5 }).unwrap();
-
         let poll_count = AtomicUsize::new(0);
-        let cancel_after = 3; // Cancel after 3 polls
+        let cancel_after = 3;
+
         let cancel_token = || {
             let count = poll_count.fetch_add(1, Ordering::Relaxed);
             count >= cancel_after
         };
 
-        let result =
-            generate_fractal_parallel_rayon_cancelable_impl(pixel_rect, &algorithm, &cancel_token);
+        let result = generate_fractal_parallel_rayon_cancelable_impl(pixel_rect, &algorithm, &cancel_token);
 
-        // Should have been cancelled
         assert!(matches!(result, Err(GenerateFractalError::Cancelled(_))));
-        // Token was polled at least cancel_after times
         assert!(poll_count.load(Ordering::Relaxed) >= cancel_after);
     }
 
@@ -315,23 +278,18 @@ mod tests {
         use std::sync::atomic::AtomicUsize;
 
         let algorithm = StubSuccessAlgorithm {};
-        // Narrow rect: 2 pixels wide, 5 rows tall
-        // Each row should check cancellation at start (x == 0)
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 1, y: 4 }).unwrap();
-
         let poll_count = AtomicUsize::new(0);
+
         let cancel_token = || {
             poll_count.fetch_add(1, Ordering::Relaxed);
-            false // Never cancel
+            false
         };
 
-        let result =
-            generate_fractal_parallel_rayon_cancelable_impl(pixel_rect, &algorithm, &cancel_token);
-
-        // Should succeed
-        assert!(result.is_ok());
-        // With 5 rows, should poll at least 5 times (once per row start)
+        let result = generate_fractal_parallel_rayon_cancelable_impl(pixel_rect, &algorithm, &cancel_token);
         let polls = poll_count.load(Ordering::Relaxed);
+
+        assert!(result.is_ok());
         assert!(polls >= 5, "Expected at least 5 polls for 5 rows, got {}", polls);
     }
 
@@ -340,24 +298,18 @@ mod tests {
         use std::sync::atomic::AtomicUsize;
 
         let algorithm = StubSuccessAlgorithm {};
-        // Wide rect: 3000 pixels wide (well over CANCEL_CHECK_INTERVAL_PIXELS), 2 rows
-        // Each row should poll at least 3 times: at 0, 1024, 2048
-        // Min size is 2x2, so we use height 2
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 2999, y: 1 }).unwrap();
-
         let poll_count = AtomicUsize::new(0);
+
         let cancel_token = || {
             poll_count.fetch_add(1, Ordering::Relaxed);
-            false // Never cancel
+            false
         };
 
-        let result =
-            generate_fractal_parallel_rayon_cancelable_impl(pixel_rect, &algorithm, &cancel_token);
-
-        // Should succeed
-        assert!(result.is_ok());
-        // With 3000 pixels per row, interval of 1024, and 2 rows, should poll at least 6 times
+        let result = generate_fractal_parallel_rayon_cancelable_impl(pixel_rect, &algorithm, &cancel_token);
         let polls = poll_count.load(Ordering::Relaxed);
+
+        assert!(result.is_ok());
         assert!(polls >= 6, "Expected at least 6 polls for 2 wide rows, got {}", polls);
     }
 }
