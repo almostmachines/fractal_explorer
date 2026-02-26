@@ -93,17 +93,18 @@ mod tests {
         assert_eq!(colour.b, 228);
     }
 
-    // #[test]
-    // fn test_map_returns_error_when_iterations_exceed_max() {
-    //     let mapper = MandelbrotBlueWhiteGradient::new(100);
-    //     let result = mapper.map(101);
-    //
-    //     assert!(matches!(
-    //         result,
-    //         Err(MandelbrotColourMapErrors::IterationsExceedMax {
-    //             iterations: 101,
-    //             max_iterations: 100
-    //         })
-    //     ));
-    // }
+    #[test]
+    fn test_map_returns_error_when_iterations_exceed_max() {
+        let mapper = MandelbrotBlueWhiteGradient::new(100);
+        let result = mapper.map(101);
+        let err = result.expect_err("expected error when iterations exceed max");
+
+        assert!(matches!(
+            err.downcast_ref::<MandelbrotColourMapErrors>(),
+            Some(MandelbrotColourMapErrors::IterationsExceedMax {
+                iterations: 101,
+                max_iterations: 100
+            })
+        ));
+    }
 }

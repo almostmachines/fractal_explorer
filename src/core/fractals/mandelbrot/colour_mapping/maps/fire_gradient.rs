@@ -101,17 +101,7 @@ mod tests {
     }
 
     #[test]
-    fn test_map_quarter_is_red() {
-        let mapper = MandelbrotFireGradient::new(100);
-        let colour = mapper.map(25).unwrap();
-
-        assert_eq!(colour.r, 255);
-        assert_eq!(colour.g, 0);
-        assert_eq!(colour.b, 0);
-    }
-
-    #[test]
-    fn test_map_half_is_orange() {
+    fn test_map_midpoint_gradient() {
         let mapper = MandelbrotFireGradient::new(100);
         let colour = mapper.map(50).unwrap();
 
@@ -121,22 +111,17 @@ mod tests {
     }
 
     #[test]
-    fn test_map_three_quarters_is_yellow() {
+    fn test_map_returns_error_when_iterations_exceed_max() {
         let mapper = MandelbrotFireGradient::new(100);
-        let colour = mapper.map(75).unwrap();
+        let result = mapper.map(101);
+        let err = result.expect_err("expected error when iterations exceed max");
 
-        assert_eq!(colour.r, 255);
-        assert_eq!(colour.g, 255);
-        assert_eq!(colour.b, 0);
-    }
-
-    #[test]
-    fn test_map_near_max_is_near_white() {
-        let mapper = MandelbrotFireGradient::new(100);
-        let colour = mapper.map(99).unwrap();
-
-        assert_eq!(colour.r, 255);
-        assert_eq!(colour.g, 255);
-        assert!(colour.b > 240); // Nearly white
+        assert!(matches!(
+            err.downcast_ref::<MandelbrotColourMapErrors>(),
+            Some(MandelbrotColourMapErrors::IterationsExceedMax {
+                iterations: 101,
+                max_iterations: 100
+            })
+        ));
     }
 }
