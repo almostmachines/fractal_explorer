@@ -29,6 +29,7 @@ where
 
             // Calculate row range for this thread
             let start_row = thread_idx * rows_per_thread;
+
             let end_row = if thread_idx == num_threads - 1 {
                 height // Last thread takes any remainder rows
             } else {
