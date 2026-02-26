@@ -6,6 +6,7 @@ pub struct MandelbrotParams {
     max_iterations: u32,
 }
 
+#[allow(dead_code)]
 impl MandelbrotParams {
     pub fn new(region: ComplexRect, max_iterations: u32) -> Result<Self, MandelbrotError> {
         if max_iterations == 0 {
@@ -20,7 +21,6 @@ impl MandelbrotParams {
         )
     }
 
-    #[allow(dead_code)]
     pub fn display_name(&self) -> &str {
         "Mandelbrot"
     }
@@ -33,12 +33,10 @@ impl MandelbrotParams {
         self.max_iterations
     }
 
-    #[allow(dead_code)]
     pub fn set_region(&mut self, region: ComplexRect) {
         self.region = region
     }
 
-    #[allow(dead_code)]
     pub fn set_max_iterations(&mut self, max_iterations: u32) -> Result<(), MandelbrotError> {
         if max_iterations == 0 {
             return Err(MandelbrotError::ZeroMaxIterationsError);
