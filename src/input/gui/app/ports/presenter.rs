@@ -7,10 +7,7 @@ use crate::{controllers::interactive::ports::presenter::InteractiveControllerPre
 
 pub trait GuiPresenterPort {
     fn new(window: &'static Window, event_loop_proxy: EventLoopProxy<GuiEvent>) -> Self;
-
     fn render(&mut self, egui_output: egui::FullOutput, egui_ctx: &EguiContext, requested_generation: u64) -> Result<(), pixels::Error>;
-
     fn share_adapter(&self) -> Arc<dyn InteractiveControllerPresenterPort>;
-
     fn resize(&mut self, width: u32, height: u32);
 }
