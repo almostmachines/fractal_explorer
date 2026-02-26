@@ -6,10 +6,6 @@ use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
 use crate::core::util::calculate_threads_for_pixel_rect_banding::calculate_threads_for_pixel_rect_banding;
 
-/// Generates fractal data in parallel by splitting the image into horizontal bands.
-///
-/// Each thread computes a range of rows independently. Results are collected
-/// and concatenated in row-major order to match the sequential version.
 #[allow(dead_code)]
 pub fn generate_fractal_parallel_arc<Alg>(
     pixel_rect: PixelRect,
