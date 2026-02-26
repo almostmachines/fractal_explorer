@@ -65,10 +65,6 @@ fn generate_pixel_rect_band(
     PixelRect::new(band_top_left, band_bottom_right)
 }
 
-/// Generates fractal data in parallel by splitting the image into horizontal bands.
-///
-/// Each thread computes a range of rows independently. Results are collected
-/// and concatenated in row-major order to match the sequential version.
 #[allow(dead_code)]
 pub fn generate_fractal_parallel_scoped_threads<Alg: FractalAlgorithm + Send + Sync>(
     pixel_rect: PixelRect,
@@ -144,10 +140,8 @@ mod tests {
     fn test_parallel_generates_same_results_as_sequential() {
         let algorithm = StubSuccessAlgorithm {};
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 10, y: 8 }).unwrap();
-
         let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
-        let parallel_results =
-            generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
+        let parallel_results = generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
 
         assert_eq!(parallel_results, sequential_results);
     }
@@ -156,10 +150,8 @@ mod tests {
     fn test_parallel_with_single_thread() {
         let algorithm = StubSuccessAlgorithm {};
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 5, y: 5 }).unwrap();
-
         let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
-        let parallel_results =
-            generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
+        let parallel_results = generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
 
         assert_eq!(parallel_results, sequential_results);
     }
@@ -167,12 +159,9 @@ mod tests {
     #[test]
     fn test_parallel_with_uneven_row_distribution() {
         let algorithm = StubSuccessAlgorithm {};
-        // 7 rows with 4 threads: 1,1,1,4 distribution
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 7 }).unwrap();
-
         let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
-        let parallel_results =
-            generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
+        let parallel_results = generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
 
         assert_eq!(parallel_results, sequential_results);
     }
@@ -180,12 +169,9 @@ mod tests {
     #[test]
     fn test_parallel_with_more_threads_than_rows() {
         let algorithm = StubSuccessAlgorithm {};
-        // 2 rows with 4 threads
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 5, y: 2 }).unwrap();
-
         let sequential_results = generate_fractal_serial(pixel_rect, &algorithm).unwrap();
-        let parallel_results =
-            generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
+        let parallel_results = generate_fractal_parallel_scoped_threads(pixel_rect, &algorithm).unwrap();
 
         assert_eq!(parallel_results, sequential_results);
     }
