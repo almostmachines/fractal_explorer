@@ -14,17 +14,10 @@ pub enum GeneratePixelBufferError {
     PixelBuffer(PixelBufferError),
 }
 
-/// Error type for cancelable pixel buffer generation.
-///
-/// Distinguishes between processing errors and cancellation, allowing callers
-/// to handle each case appropriately.
 #[derive(Debug)]
 pub enum GeneratePixelBufferCancelableError {
-    /// The operation was cancelled before completion.
     Cancelled(Cancelled),
-    /// A colour mapping error occurred.
     ColourMap(Box<dyn Error>),
-    /// A pixel buffer construction error occurred.
     PixelBuffer(PixelBufferError),
 }
 
@@ -72,15 +65,11 @@ impl From<PixelBufferError> for GeneratePixelBufferError {
     }
 }
 
-/// Generates a pixel buffer by mapping input values to colours.
-///
-/// For cancel-aware generation, use [`generate_pixel_buffer_cancelable`].
 pub fn generate_pixel_buffer<T, CMap: ColourMap<T>>(
     input: Vec<T>,
     mapper: &CMap,
     pixel_rect: PixelRect,
 ) -> Result<PixelBuffer, GeneratePixelBufferError> {
-    // Delegate to the cancel-aware implementation with NeverCancel
     generate_pixel_buffer_cancelable_impl(input, mapper, pixel_rect, &NeverCancel).map_err(|e| {
         match e {
             GeneratePixelBufferCancelableError::ColourMap(err) => {
@@ -90,22 +79,12 @@ pub fn generate_pixel_buffer<T, CMap: ColourMap<T>>(
                 GeneratePixelBufferError::PixelBuffer(err)
             }
             GeneratePixelBufferCancelableError::Cancelled(_) => {
-                // NeverCancel never cancels, so this branch is unreachable
                 unreachable!("NeverCancel token should never signal cancellation")
             }
         }
     })
 }
 
-/// Generates a pixel buffer with cancellation support.
-///
-/// Like [`generate_pixel_buffer`], but accepts a cancellation token that can
-/// abort the operation early. Checks for cancellation periodically during
-/// colour mapping.
-///
-/// Returns [`GeneratePixelBufferCancelableError::Cancelled`] if cancellation
-/// was requested, which should be handled as expected control flow (not an
-/// error to display).
 #[allow(dead_code)]
 pub fn generate_pixel_buffer_cancelable<T, CMap, C>(
     input: Vec<T>,
@@ -120,14 +99,6 @@ where
     generate_pixel_buffer_cancelable_impl(input, mapper, pixel_rect, cancel)
 }
 
-/// Internal cancel-aware pixel buffer generation implementation.
-///
-/// Streams RGB bytes into a preallocated buffer while periodically checking
-/// for cancellation. Checks `cancel.is_cancelled()` every
-/// [`CANCEL_CHECK_INTERVAL_PIXELS`] pixels.
-///
-/// Preallocates the buffer to `pixel_rect.size() * 3` bytes to avoid
-/// intermediate allocations and reduce wasted work on cancellation.
 #[allow(dead_code)]
 pub(crate) fn generate_pixel_buffer_cancelable_impl<T, CMap, C>(
     input: Vec<T>,
@@ -143,7 +114,6 @@ where
     let mut buffer: PixelBufferData = Vec::with_capacity(buffer_size);
 
     for (i, value) in input.into_iter().enumerate() {
-        // Check cancellation every N pixels
         if i % CANCEL_CHECK_INTERVAL_PIXELS == 0 && cancel.is_cancelled() {
             return Err(GeneratePixelBufferCancelableError::Cancelled(Cancelled));
         }
@@ -244,20 +214,14 @@ mod tests {
         ));
     }
 
-    // Tests for cancelable implementation
-
     #[test]
     fn test_cancelable_generates_pixel_buffer_correctly() {
         let input: Vec<u8> = vec![1, 2, 3, 4, 5, 6];
         let mapper = StubColourMapSuccess {};
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 2, y: 1 }).unwrap();
-        let expected_buffer: PixelBufferData =
-            vec![1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6];
+        let expected_buffer: PixelBufferData = vec![1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6];
         let expected_results = PixelBuffer::from_data(pixel_rect, expected_buffer).unwrap();
-
-        let results =
-            generate_pixel_buffer_cancelable_impl(input, &mapper, pixel_rect, &NeverCancel)
-                .unwrap();
+        let results = generate_pixel_buffer_cancelable_impl(input, &mapper, pixel_rect, &NeverCancel).unwrap();
 
         assert_eq!(results.buffer(), expected_results.buffer());
         assert_eq!(results.pixel_rect(), expected_results.pixel_rect());
@@ -271,9 +235,7 @@ mod tests {
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 2, y: 1 }).unwrap();
         let cancelled = AtomicBool::new(true);
         let cancel_token = || cancelled.load(Ordering::Relaxed);
-
-        let result =
-            generate_pixel_buffer_cancelable_impl(input, &mapper, pixel_rect, &cancel_token);
+        let result = generate_pixel_buffer_cancelable_impl(input, &mapper, pixel_rect, &cancel_token);
 
         assert!(matches!(
             result,
@@ -286,9 +248,7 @@ mod tests {
         let input: Vec<u8> = vec![1, 2, 3, 4, 5, 6];
         let mapper = StubColourMapFailure {};
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 2 }).unwrap();
-
-        let result =
-            generate_pixel_buffer_cancelable_impl(input, &mapper, pixel_rect, &NeverCancel);
+        let result = generate_pixel_buffer_cancelable_impl(input, &mapper, pixel_rect, &NeverCancel);
 
         assert!(matches!(
             result,
@@ -299,13 +259,14 @@ mod tests {
     #[test]
     fn test_cancelable_error_displays_cancelled() {
         let err = GeneratePixelBufferCancelableError::Cancelled(Cancelled);
+
         assert_eq!(format!("{}", err), "operation cancelled");
     }
 
     #[test]
     fn test_cancelable_error_displays_colour_map_error() {
-        let err =
-            GeneratePixelBufferCancelableError::ColourMap("StubColourMapError".into());
+        let err = GeneratePixelBufferCancelableError::ColourMap("StubColourMapError".into());
+
         assert_eq!(format!("{}", err), "colour map error: StubColourMapError");
     }
 
@@ -314,13 +275,13 @@ mod tests {
         let input: Vec<u8> = vec![1, 2, 3, 4, 5, 6];
         let mapper = StubColourMapSuccess {};
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 2, y: 1 }).unwrap();
-
-        // Test the public API function
         let result = generate_pixel_buffer_cancelable(input, &mapper, pixel_rect, &NeverCancel);
 
         assert!(result.is_ok());
+        
         let pixel_buffer = result.unwrap();
-        assert_eq!(pixel_buffer.buffer().len(), 18); // 6 pixels * 3 bytes
+
+        assert_eq!(pixel_buffer.buffer().len(), 18);
     }
 
     #[test]
@@ -330,11 +291,10 @@ mod tests {
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 2, y: 1 }).unwrap();
         let cancelled = AtomicBool::new(true);
         let cancel_token = || cancelled.load(Ordering::Relaxed);
-
         let result = generate_pixel_buffer_cancelable(input, &mapper, pixel_rect, &cancel_token);
 
-        // Result should be Err(Cancelled), not a PixelBuffer
         assert!(result.is_err());
+
         assert!(matches!(
             result,
             Err(GeneratePixelBufferCancelableError::Cancelled(_))
