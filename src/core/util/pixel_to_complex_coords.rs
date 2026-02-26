@@ -96,6 +96,7 @@ mod tests {
         .unwrap();
 
         let result = pixel_to_complex_coords(Point { x: 100, y: 100 }, pixel_rect, complex_rect);
+
         assert_eq!(result.unwrap().real, 1.0);
         assert_eq!(result.unwrap().imag, 1.0);
     }
@@ -126,7 +127,6 @@ mod tests {
     fn test_pixel_outside_complex_fails() {
         let point1 = Point { x: 150, y: 150 };
         let point2 = Point { x: -10, y: -10 };
-
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 100, y: 100 }).unwrap();
 
         let complex_rect = ComplexRect::new(
