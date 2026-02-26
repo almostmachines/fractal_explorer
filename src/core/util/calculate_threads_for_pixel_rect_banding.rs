@@ -17,6 +17,15 @@ mod tests {
     use crate::core::data::point::Point;
 
     #[test]
+    fn test_pixel_rect_height_1_gives_1_thread() {
+        let threads = calculate_threads_for_pixel_rect_banding(
+            PixelRect::new(Point { x: 0, y: 0 }, Point { x: 0, y: 0 }).unwrap(),
+        );
+
+        assert_eq!(threads, 1);
+    }
+
+    #[test]
     fn test_pixel_rect_height_2_gives_1_thread() {
         let threads = calculate_threads_for_pixel_rect_banding(
             PixelRect::new(Point { x: 0, y: 0 }, Point { x: 10, y: 1 }).unwrap(),
