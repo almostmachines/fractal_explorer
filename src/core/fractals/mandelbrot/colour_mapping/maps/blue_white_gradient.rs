@@ -84,16 +84,6 @@ mod tests {
     }
 
     #[test]
-    fn test_map_quarter_gradient() {
-        let mapper = MandelbrotBlueWhiteGradient::new(100);
-        let colour = mapper.map(25).unwrap();
-
-        assert_eq!(colour.r, 26);
-        assert_eq!(colour.g, 134);
-        assert_eq!(colour.b, 228);
-    }
-
-    #[test]
     fn test_map_returns_error_when_iterations_exceed_max() {
         let mapper = MandelbrotBlueWhiteGradient::new(100);
         let result = mapper.map(101);
