@@ -2,9 +2,10 @@ use std::sync::Arc;
 use std::time::Duration;
 use egui::Context;
 use egui_winit::State as EguiWinitState;
+use crate::core::fractals::julia::colour_mapping::kinds::JuliaColourMapKinds;
 use crate::input::gui::app::events::gui::GuiEvent;
 use crate::input::gui::app::state::GuiAppState;
-use crate::{core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds, input::gui::app::ports::presenter::GuiPresenterPort};
+use crate::input::gui::app::ports::presenter::GuiPresenterPort;
 use crate::controllers::interactive::InteractiveController;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
@@ -130,7 +131,7 @@ impl<T: GuiPresenterPort> GuiApp<T>
                         egui::ComboBox::from_id_source("mandelbrot_colour_map")
                             .selected_text(self.ui_state.colour_map_kind.display_name())
                             .show_ui(ui, |ui| {
-                                for &kind in MandelbrotColourMapKinds::ALL {
+                                for &kind in JuliaColourMapKinds::ALL {
                                     ui.selectable_value(
                                         &mut self.ui_state.colour_map_kind,
                                         kind,

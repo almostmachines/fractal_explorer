@@ -3,9 +3,9 @@ use crate::controllers::interactive::data::fractal_config::FractalConfig;
 use crate::core::data::complex::Complex;
 use crate::core::data::complex_rect::ComplexRect;
 use crate::core::data::pixel_rect::PixelRect;
-use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
-use crate::core::fractals::mandelbrot::colour_mapping::factory::mandelbrot_colour_map_factory;
-use crate::core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds;
+use crate::core::fractals::julia::algorithm::JuliaAlgorithm;
+use crate::core::fractals::julia::colour_mapping::factory::julia_colour_map_factory;
+use crate::core::fractals::julia::colour_mapping::kinds::JuliaColourMapKinds;
 
 const DEFAULT_MAX_ITERATIONS: u32 = 256;
 
@@ -20,13 +20,13 @@ fn default_region() -> ComplexRect {
             imag: 1.0,
         },
     )
-    .expect("default mandelbrot region is valid")
+    .expect("default julia region is valid")
 }
 
 pub struct GuiAppState {
     pub region: ComplexRect,
     pub max_iterations: u32,
-    pub colour_map_kind: MandelbrotColourMapKinds,
+    pub colour_map_kind: JuliaColourMapKinds,
     last_submitted_request: Option<Arc<FractalConfig>>,
     pub latest_submitted_generation: u64,
     pub redraw_pending: bool,
@@ -37,7 +37,7 @@ impl Default for GuiAppState {
         Self {
             region: default_region(),
             max_iterations: DEFAULT_MAX_ITERATIONS,
-            colour_map_kind: MandelbrotColourMapKinds::default(),
+            colour_map_kind: JuliaColourMapKinds::default(),
             last_submitted_request: None,
             latest_submitted_generation: 0,
             redraw_pending: true,
@@ -48,10 +48,10 @@ impl Default for GuiAppState {
 impl GuiAppState {
     #[must_use]
     pub fn build_render_request(&self, pixel_rect: PixelRect) -> FractalConfig {
-        let colour_map = mandelbrot_colour_map_factory(self.colour_map_kind, self.max_iterations);
-        let algorithm = MandelbrotAlgorithm::new(pixel_rect, self.region, self.max_iterations).unwrap();
+        let colour_map = julia_colour_map_factory(self.colour_map_kind, self.max_iterations);
+        let algorithm = JuliaAlgorithm::new(pixel_rect, self.region, self.max_iterations).unwrap();
 
-        FractalConfig::Mandelbrot { colour_map, algorithm }
+        FractalConfig::Julia { colour_map, algorithm }
     }
 
     #[must_use]
@@ -102,7 +102,7 @@ mod tests {
         assert!(!ui_state.should_submit(&same_request));
 
         // Change only colour_map_kind
-        ui_state.colour_map_kind = MandelbrotColourMapKinds::BlueWhiteGradient;
+        ui_state.colour_map_kind = JuliaColourMapKinds::BlueWhiteGradient;
         let changed_request = ui_state.build_render_request(pixel_rect);
         assert!(ui_state.should_submit(&changed_request));
     }

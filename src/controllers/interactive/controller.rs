@@ -13,7 +13,11 @@ use crate::core::actions::generate_fractal::generate_fractal_parallel_rayon::{
 use crate::core::actions::generate_pixel_buffer::generate_pixel_buffer::{
     generate_pixel_buffer_cancelable, GeneratePixelBufferCancelableError,
 };
+use crate::core::actions::cancellation::CancelToken;
+use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
+use crate::core::actions::generate_pixel_buffer::ports::colour_map::ColourMap;
 use crate::core::data::pixel_buffer::PixelBuffer;
+use crate::core::data::pixel_rect::PixelRect;
 
 struct SharedState {
     generation: AtomicU64,
@@ -137,12 +141,30 @@ impl InteractiveController {
         request: &FractalConfig,
         cancel: &C,
     ) -> Result<PixelBuffer, RenderOutcome> {
-        let (colour_map, algorithm) = match &request {
-            FractalConfig::Mandelbrot { colour_map, algorithm } => (colour_map, algorithm),
-        };
+        match &request {
+            FractalConfig::Mandelbrot { colour_map, algorithm } => {
+                Self::render_with(algorithm.pixel_rect, algorithm, colour_map, cancel)
+            }
+            FractalConfig::Julia { colour_map, algorithm } => {
+                Self::render_with(algorithm.pixel_rect, algorithm, colour_map, cancel)
+            }
+        }
+    }
 
+    fn render_with<Alg, CMap, C>(
+        pixel_rect: PixelRect,
+        algorithm: &Alg,
+        colour_map: &CMap,
+        cancel: &C,
+    ) -> Result<PixelBuffer, RenderOutcome>
+    where
+        Alg: FractalAlgorithm<Success = u32> + Sync,
+        Alg::Failure: Send,
+        CMap: ColourMap<u32>,
+        C: CancelToken,
+    {
         let fractal =
-        generate_fractal_parallel_rayon_cancelable(algorithm.pixel_rect, algorithm, cancel)
+        generate_fractal_parallel_rayon_cancelable(pixel_rect, algorithm, cancel)
             .map_err(|e| match e {
                 GenerateFractalError::Cancelled(_) => RenderOutcome::Cancelled,
                 GenerateFractalError::Algorithm(err) => {
@@ -157,7 +179,7 @@ impl InteractiveController {
         let pixel_buffer = generate_pixel_buffer_cancelable(
             fractal,
             colour_map,
-            algorithm.pixel_rect,
+            pixel_rect,
             cancel,
         )
             .map_err(|e| match e {
