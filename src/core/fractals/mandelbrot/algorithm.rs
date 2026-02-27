@@ -40,6 +40,10 @@ impl FractalAlgorithm for MandelbrotAlgorithm {
             ControlFlow::Continue(_) => self.max_iterations,
         })
     }
+
+    fn pixel_rect(&self) -> PixelRect {
+        self.pixel_rect
+    }
 }
 
 impl MandelbrotAlgorithm {

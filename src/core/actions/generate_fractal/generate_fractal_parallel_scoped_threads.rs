@@ -134,6 +134,10 @@ mod tests {
         fn compute(&self, pixel: Point) -> Result<Self::Success, Self::Failure> {
             Ok((pixel.x + pixel.y) as u64)
         }
+
+        fn pixel_rect(&self) -> PixelRect {
+            PixelRect::new(Point { x: 0, y: 0 }, Point { x: 0, y: 0 }).unwrap()
+        }
     }
 
     #[test]

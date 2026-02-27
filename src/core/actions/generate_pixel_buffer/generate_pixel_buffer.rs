@@ -65,7 +65,7 @@ impl From<PixelBufferError> for GeneratePixelBufferError {
     }
 }
 
-pub fn generate_pixel_buffer<T, CMap: ColourMap<T>>(
+pub fn generate_pixel_buffer<T, CMap: ColourMap<T> + ?Sized>(
     input: Vec<T>,
     mapper: &CMap,
     pixel_rect: PixelRect,
@@ -93,7 +93,7 @@ pub fn generate_pixel_buffer_cancelable<T, CMap, C>(
     cancel: &C,
 ) -> Result<PixelBuffer, GeneratePixelBufferCancelableError>
 where
-    CMap: ColourMap<T>,
+    CMap: ColourMap<T> + ?Sized,
     C: CancelToken,
 {
     generate_pixel_buffer_cancelable_impl(input, mapper, pixel_rect, cancel)
@@ -107,7 +107,7 @@ pub(crate) fn generate_pixel_buffer_cancelable_impl<T, CMap, C>(
     cancel: &C,
 ) -> Result<PixelBuffer, GeneratePixelBufferCancelableError>
 where
-    CMap: ColourMap<T>,
+    CMap: ColourMap<T> + ?Sized,
     C: CancelToken,
 {
     let buffer_size = (pixel_rect.size() * 3) as usize;

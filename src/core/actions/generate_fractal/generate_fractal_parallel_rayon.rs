@@ -37,7 +37,7 @@ pub fn generate_fractal_parallel_rayon<Alg>(
     algorithm: &Alg,
 ) -> Result<Vec<Alg::Success>, Alg::Failure>
 where
-    Alg: FractalAlgorithm + Sync,
+    Alg: FractalAlgorithm + Sync + ?Sized,
     Alg::Success: Send,
     Alg::Failure: Send,
 {
@@ -57,7 +57,7 @@ pub fn generate_fractal_parallel_rayon_cancelable<Alg, C>(
     cancel: &C,
 ) -> Result<Vec<Alg::Success>, GenerateFractalError<Alg::Failure>>
 where
-    Alg: FractalAlgorithm + Sync,
+    Alg: FractalAlgorithm + Sync + ?Sized,
     Alg::Success: Send,
     Alg::Failure: Send,
     C: CancelToken,
@@ -72,7 +72,7 @@ pub(crate) fn generate_fractal_parallel_rayon_cancelable_impl<Alg, C>(
     cancel: &C,
 ) -> Result<Vec<Alg::Success>, GenerateFractalError<Alg::Failure>>
 where
-    Alg: FractalAlgorithm + Sync,
+    Alg: FractalAlgorithm + Sync + ?Sized,
     Alg::Success: Send,
     Alg::Failure: Send,
     C: CancelToken,
@@ -133,6 +133,10 @@ mod tests {
         fn compute(&self, pixel: Point) -> Result<Self::Success, Self::Failure> {
             Ok((pixel.x + pixel.y) as u64)
         }
+
+        fn pixel_rect(&self) -> PixelRect {
+            PixelRect::new(Point { x: 0, y: 0 }, Point { x: 0, y: 0 }).unwrap()
+        }
     }
 
     #[derive(Debug)]
@@ -144,6 +148,10 @@ mod tests {
 
         fn compute(&self, _: Point) -> Result<Self::Success, Self::Failure> {
             Err(StubError {})
+        }
+
+        fn pixel_rect(&self) -> PixelRect {
+            PixelRect::new(Point { x: 0, y: 0 }, Point { x: 0, y: 0 }).unwrap()
         }
     }
 

@@ -46,6 +46,10 @@ mod tests {
         fn compute(&self, pixel: Point) -> Result<Self::Success, Self::Failure> {
             Ok((pixel.x + pixel.y) as u64)
         }
+
+        fn pixel_rect(&self) -> PixelRect {
+            PixelRect::new(Point { x: 0, y: 0 }, Point { x: 0, y: 0 }).unwrap()
+        }
     }
 
     #[derive(Debug, PartialEq)]
@@ -57,6 +61,10 @@ mod tests {
 
         fn compute(&self, _: Point) -> Result<Self::Success, Self::Failure> {
             Err(StubError {})
+        }
+
+        fn pixel_rect(&self) -> PixelRect {
+            PixelRect::new(Point { x: 0, y: 0 }, Point { x: 0, y: 0 }).unwrap()
         }
     }
 

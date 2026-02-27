@@ -14,10 +14,7 @@ use crate::core::actions::generate_pixel_buffer::generate_pixel_buffer::{
     generate_pixel_buffer_cancelable, GeneratePixelBufferCancelableError,
 };
 use crate::core::actions::cancellation::CancelToken;
-use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
-use crate::core::actions::generate_pixel_buffer::ports::colour_map::ColourMap;
 use crate::core::data::pixel_buffer::PixelBuffer;
-use crate::core::data::pixel_rect::PixelRect;
 
 struct SharedState {
     generation: AtomicU64,
@@ -137,62 +134,37 @@ impl InteractiveController {
         }
     }
 
-    fn render_request<C: crate::core::actions::cancellation::CancelToken>(
+    fn render_request<C: CancelToken>(
         request: &FractalConfig,
         cancel: &C,
     ) -> Result<PixelBuffer, RenderOutcome> {
-        match &request {
-            FractalConfig::Mandelbrot { colour_map, algorithm } => {
-                Self::render_with(algorithm.pixel_rect, algorithm, colour_map, cancel)
-            }
-            FractalConfig::Julia { colour_map, algorithm } => {
-                Self::render_with(algorithm.pixel_rect, algorithm, colour_map, cancel)
-            }
-        }
-    }
+        let algorithm = request.algorithm();
+        let colour_map = request.colour_map();
+        let pixel_rect = algorithm.pixel_rect();
 
-    fn render_with<Alg, CMap, C>(
-        pixel_rect: PixelRect,
-        algorithm: &Alg,
-        colour_map: &CMap,
-        cancel: &C,
-    ) -> Result<PixelBuffer, RenderOutcome>
-    where
-        Alg: FractalAlgorithm<Success = u32> + Sync,
-        Alg::Failure: Send,
-        CMap: ColourMap<u32>,
-        C: CancelToken,
-    {
         let fractal =
-        generate_fractal_parallel_rayon_cancelable(pixel_rect, algorithm, cancel)
+            generate_fractal_parallel_rayon_cancelable(pixel_rect, algorithm, cancel)
             .map_err(|e| match e {
                 GenerateFractalError::Cancelled(_) => RenderOutcome::Cancelled,
-                GenerateFractalError::Algorithm(err) => {
-                    RenderOutcome::Error(err.to_string())
-                }
+                GenerateFractalError::Algorithm(err) => RenderOutcome::Error(err.to_string()),
             })?;
 
         if cancel.is_cancelled() {
             return Err(RenderOutcome::Cancelled);
         }
 
-        let pixel_buffer = generate_pixel_buffer_cancelable(
-            fractal,
-            colour_map,
-            pixel_rect,
-            cancel,
-        )
-            .map_err(|e| match e {
-                GeneratePixelBufferCancelableError::Cancelled(_) => {
-                    RenderOutcome::Cancelled
-                }
-                GeneratePixelBufferCancelableError::ColourMap(err) => {
-                    RenderOutcome::Error(err.to_string())
-                }
-                GeneratePixelBufferCancelableError::PixelBuffer(err) => {
-                    RenderOutcome::Error(err.to_string())
-                }
-            })?;
+        let pixel_buffer =
+            generate_pixel_buffer_cancelable(fractal, colour_map, pixel_rect, cancel).map_err(
+                |e| match e {
+                    GeneratePixelBufferCancelableError::Cancelled(_) => RenderOutcome::Cancelled,
+                    GeneratePixelBufferCancelableError::ColourMap(err) => {
+                        RenderOutcome::Error(err.to_string())
+                    }
+                    GeneratePixelBufferCancelableError::PixelBuffer(err) => {
+                        RenderOutcome::Error(err.to_string())
+                    }
+                },
+            )?;
 
         Ok(pixel_buffer)
     }
