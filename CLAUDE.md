@@ -21,29 +21,29 @@ cargo build --features gui                    # Build with GUI support
 
 ## Task Tracking and Management
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+This project uses **br** (beads) for issue tracking. Run `br --help` to get started.
 
 ### Quick Reference
 
 ```bash
-bd ready              # Show issues ready to work (no blockers)
-bd list --status=open # All open issues
-bd show <id>          # Full issue details with dependencies
-bd create --title="..." --type=task|feature|bug --priority=2
-bd update <id> --status=in_progress
-bd close <id> --reason="Completed"
-bd close <id1> <id2>  # Close multiple issues at once
-bd sync               # Commit and push changes
+br ready              # Show issues ready to work (no blockers)
+br list --status=open # All open issues
+br show <id>          # Full issue details with dependencies
+br create --title="..." --type=task|feature|bug --priority=2
+br update <id> --status=in_progress
+br close <id> --reason="Completed"
+br close <id1> <id2>  # Close multiple issues at once
+br sync               # Commit and push changes
 ```
 
 ### Workflow Pattern
 
-1. **Start**: Run `bd ready` to find actionable work.
-2. **Claim**: Use `bd update <id> --status=in_progress`.
+1. **Start**: Run `br ready` to find actionable work.
+2. **Claim**: Use `br update <id> --status=in_progress`.
 3. **Work**: Implement the issue and test.
 4. **Discovery**: If you discover new work, create a new bead with discovered-from:<parent-id>.
-5. **Complete**: Mark the issue as closed with `bd close <id>`. Commit and push your work.
-6. **Sync**: Always run `bd sync` after marking an issue as complete, even if you didn't commit any work.
+5. **Complete**: Mark the issue as closed with `br close <id>`. Commit and push your work.
+6. **Sync**: Always run `br sync` after marking an issue as complete, even if you didn't commit any work.
 7. **Repeat**: Repeat this workflow pattern until there are no more beads to work on
 
 ### Landing the Plane (Session Completion)
@@ -56,7 +56,7 @@ When ending a work session, complete all steps below.
 4. **Push to remote:**
    ```bash
    git pull --rebase
-   bd sync
+   br sync
    git push
    git status  # MUST show "up to date with origin"
    ```
@@ -65,11 +65,11 @@ When ending a work session, complete all steps below.
 
 ### Best Practices
 
-- Check `bd ready` at session start to find available work.
+- Check `br ready` at session start to find available work.
 - Update status as you work (in_progress → closed).
-- Create new issues with `bd create` when you discover tasks.
+- Create new issues with `br create` when you discover tasks.
 - Use descriptive titles and set appropriate priority/type.
-- Always `bd sync` before ending session.
+- Always `br sync` before ending session.
 
 ## Tips for Claude
 
