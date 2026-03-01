@@ -16,10 +16,11 @@ pub fn step_flight(
         return report;
     }
 
-    let delta_real = motion.heading[0] * motion.speed_world_per_sec * dt * config.region.width();
-    let delta_imag = motion.heading[1] * motion.speed_world_per_sec * dt * config.region.height();
+    let scale = limits.zoom_base.powf(-motion.speed_world_per_sec * dt);
 
-    if let Some(region) = translated_region(&config.region, delta_real, delta_imag) {
+    if let Some(region) =
+        scaled_region_about_focal(&config.region, scale, motion.heading, limits.steer_strength)
+    {
         config.region = region;
     } else {
         reset_non_finite(config, &mut report);
@@ -100,25 +101,30 @@ pub fn step_flight(
     report
 }
 
-fn translated_region(
+fn scaled_region_about_focal(
     region: &ComplexRect,
-    delta_real: f64,
-    delta_imag: f64,
+    scale: f64,
+    heading: [f64; 2],
+    steer_strength: f64,
 ) -> Option<ComplexRect> {
-    let top_left = region.top_left();
-    let bottom_right = region.bottom_right();
+    if !scale.is_finite() || scale <= 0.0 || !steer_strength.is_finite() {
+        return None;
+    }
 
-    ComplexRect::new(
-        Complex {
-            real: top_left.real + delta_real,
-            imag: top_left.imag + delta_imag,
-        },
-        Complex {
-            real: bottom_right.real + delta_real,
-            imag: bottom_right.imag + delta_imag,
-        },
-    )
-    .ok()
+    let width = region.width();
+    let height = region.height();
+    let (center_real, center_imag) = region_center(region);
+
+    let offset_real = heading[0] * steer_strength * width;
+    let offset_imag = heading[1] * steer_strength * height;
+    let center_scale = 1.0 - scale;
+
+    let new_center_real = center_real + (center_scale * offset_real);
+    let new_center_imag = center_imag + (center_scale * offset_imag);
+    let new_width = width * scale;
+    let new_height = height * scale;
+
+    rebuild_region(new_center_real, new_center_imag, new_width, new_height)
 }
 
 fn rebuild_region(
@@ -187,13 +193,12 @@ fn reset_non_finite(config: &mut JuliaConfig, report: &mut FlightUpdateReport) {
 
 #[cfg(test)]
 mod tests {
-    use super::step_flight;
+    use super::{region_center, step_flight};
     use crate::core::{
         data::{complex::Complex, complex_rect::ComplexRect},
         flight::{FlightLimits, FlightWarning, MotionState},
         fractals::julia::julia_config::{JuliaConfig, default_region},
     };
-    use std::f64::consts::FRAC_1_SQRT_2;
 
     const EPSILON: f64 = 1e-12;
 
@@ -233,55 +238,114 @@ mod tests {
         );
     }
 
+    fn assert_region_center(region: &ComplexRect, expected_real: f64, expected_imag: f64) {
+        let (center_real, center_imag) = region_center(region);
+        assert_approx_eq(center_real, expected_real);
+        assert_approx_eq(center_imag, expected_imag);
+    }
+
     #[test]
-    fn forward_motion_translates_region_by_view_relative_delta() {
+    fn positive_speed_zooms_in() {
+        let limits = FlightLimits {
+            steer_strength: 0.0,
+            ..FlightLimits::default()
+        };
         let mut config = JuliaConfig {
             region: rect(-2.0, -1.0, 2.0, 1.0),
             ..JuliaConfig::default()
         };
         let motion = motion([1.0, 0.0], 1.0);
+        let dt = 0.5;
+        let scale = limits.zoom_base.powf(-motion.speed_world_per_sec * dt);
 
-        let report = step_flight(&mut config, &motion, 0.5, &FlightLimits::default());
+        let report = step_flight(&mut config, &motion, dt, &limits);
 
-        assert_approx_eq(config.region.top_left().real, 0.0);
-        assert_approx_eq(config.region.bottom_right().real, 4.0);
-        assert_approx_eq(config.region.top_left().imag, -1.0);
-        assert_approx_eq(config.region.bottom_right().imag, 1.0);
+        assert_approx_eq(config.region.width(), 4.0 * scale);
+        assert_approx_eq(config.region.height(), 2.0 * scale);
+        assert_region_center(&config.region, 0.0, 0.0);
         assert!(!report.clamped);
         assert_eq!(report.warning, None);
     }
 
     #[test]
-    fn negative_speed_translates_in_reverse_direction() {
+    fn negative_speed_zooms_out() {
+        let limits = FlightLimits {
+            steer_strength: 0.0,
+            ..FlightLimits::default()
+        };
         let mut config = JuliaConfig {
             region: rect(-2.0, -1.0, 2.0, 1.0),
             ..JuliaConfig::default()
         };
         let motion = motion([1.0, 0.0], -1.0);
+        let dt = 0.5;
+        let scale = limits.zoom_base.powf(-motion.speed_world_per_sec * dt);
 
-        step_flight(&mut config, &motion, 0.5, &FlightLimits::default());
+        step_flight(&mut config, &motion, dt, &limits);
 
-        assert_approx_eq(config.region.top_left().real, -4.0);
-        assert_approx_eq(config.region.bottom_right().real, 0.0);
+        assert_approx_eq(config.region.width(), 4.0 * scale);
+        assert_approx_eq(config.region.height(), 2.0 * scale);
+        assert_region_center(&config.region, 0.0, 0.0);
     }
 
     #[test]
-    fn diagonal_heading_translates_both_axes() {
+    fn steering_changes_center_while_zooming() {
+        let limits = FlightLimits::default();
         let mut config = JuliaConfig {
             region: rect(-2.0, -1.0, 2.0, 1.0),
             ..JuliaConfig::default()
         };
-        let motion = motion([FRAC_1_SQRT_2, -FRAC_1_SQRT_2], 1.0);
+        let motion = motion([1.0, 0.0], 1.0);
+        let dt = 1.0;
+        let scale = limits.zoom_base.powf(-motion.speed_world_per_sec * dt);
+        let expected_center_shift = (1.0 - scale) * limits.steer_strength * 4.0;
 
-        step_flight(&mut config, &motion, 1.0, &FlightLimits::default());
+        step_flight(&mut config, &motion, dt, &limits);
 
-        let expected_delta_real = FRAC_1_SQRT_2 * 4.0;
-        let expected_delta_imag = -FRAC_1_SQRT_2 * 2.0;
+        assert_region_center(&config.region, expected_center_shift, 0.0);
+        assert_approx_eq(config.region.width(), 4.0 * scale);
+        assert_approx_eq(config.region.height(), 2.0 * scale);
+    }
 
-        assert_approx_eq(config.region.top_left().real, -2.0 + expected_delta_real);
-        assert_approx_eq(config.region.bottom_right().real, 2.0 + expected_delta_real);
-        assert_approx_eq(config.region.top_left().imag, -1.0 + expected_delta_imag);
-        assert_approx_eq(config.region.bottom_right().imag, 1.0 + expected_delta_imag);
+    #[test]
+    fn negative_speed_drifts_opposite_heading() {
+        let limits = FlightLimits::default();
+        let mut config = JuliaConfig {
+            region: rect(-2.0, -1.0, 2.0, 1.0),
+            ..JuliaConfig::default()
+        };
+        let motion = motion([1.0, 0.0], -1.0);
+        let dt = 1.0;
+        let scale = limits.zoom_base.powf(-motion.speed_world_per_sec * dt);
+        let expected_center_shift = (1.0 - scale) * limits.steer_strength * 4.0;
+
+        step_flight(&mut config, &motion, dt, &limits);
+
+        assert!(expected_center_shift < 0.0);
+        assert_region_center(&config.region, expected_center_shift, 0.0);
+        assert_approx_eq(config.region.width(), 4.0 * scale);
+        assert_approx_eq(config.region.height(), 2.0 * scale);
+    }
+
+    #[test]
+    fn steer_strength_zero_means_zoom_about_center() {
+        let limits = FlightLimits {
+            steer_strength: 0.0,
+            ..FlightLimits::default()
+        };
+        let mut config = JuliaConfig {
+            region: rect(-2.0, -1.0, 2.0, 1.0),
+            ..JuliaConfig::default()
+        };
+        let motion = motion([1.0, 0.0], 1.0);
+        let dt = 1.0;
+        let scale = limits.zoom_base.powf(-motion.speed_world_per_sec * dt);
+
+        step_flight(&mut config, &motion, dt, &limits);
+
+        assert_region_center(&config.region, 0.0, 0.0);
+        assert_approx_eq(config.region.width(), 4.0 * scale);
+        assert_approx_eq(config.region.height(), 2.0 * scale);
     }
 
     #[test]
@@ -327,47 +391,9 @@ mod tests {
     }
 
     #[test]
-    fn same_speed_moves_more_at_wider_zoom() {
-        let mut narrow = JuliaConfig {
-            region: rect(-1.0, -1.0, 1.0, 1.0),
-            ..JuliaConfig::default()
-        };
-        let mut wide = JuliaConfig {
-            region: rect(-2.0, -1.0, 2.0, 1.0),
-            ..JuliaConfig::default()
-        };
-        let motion = motion([1.0, 0.0], 1.0);
-
-        step_flight(&mut narrow, &motion, 0.5, &FlightLimits::default());
-        step_flight(&mut wide, &motion, 0.5, &FlightLimits::default());
-
-        let narrow_delta = narrow.region.top_left().real - (-1.0);
-        let wide_delta = wide.region.top_left().real - (-2.0);
-
-        assert_approx_eq(narrow_delta, 1.0);
-        assert_approx_eq(wide_delta, 2.0);
-    }
-
-    #[test]
-    fn non_square_region_uses_independent_width_and_height() {
-        let mut config = JuliaConfig {
-            region: rect(-3.0, -1.0, 1.0, 2.0),
-            ..JuliaConfig::default()
-        };
-        let motion = motion([1.0, -1.0], 0.5);
-
-        step_flight(&mut config, &motion, 1.0, &FlightLimits::default());
-
-        assert_approx_eq(config.region.top_left().real, -1.0);
-        assert_approx_eq(config.region.bottom_right().real, 3.0);
-        assert_approx_eq(config.region.top_left().imag, -2.5);
-        assert_approx_eq(config.region.bottom_right().imag, 0.5);
-    }
-
-    #[test]
     fn center_clamp_limits_real_and_preserves_dimensions() {
         let limits = FlightLimits {
-            max_center_abs: 1.0,
+            max_center_abs: 0.2,
             ..FlightLimits::default()
         };
         let mut config = JuliaConfig {
@@ -378,12 +404,9 @@ mod tests {
 
         let report = step_flight(&mut config, &motion, 1.0, &limits);
 
-        assert_approx_eq(config.region.width(), 2.0);
-        assert_approx_eq(config.region.height(), 2.0);
-        assert_approx_eq(
-            (config.region.top_left().real + config.region.bottom_right().real) * 0.5,
-            1.0,
-        );
+        assert_approx_eq(config.region.width(), 1.0);
+        assert_approx_eq(config.region.height(), 1.0);
+        assert_region_center(&config.region, 0.2, 0.0);
         assert!(report.clamped);
         assert_eq!(report.warning, Some(FlightWarning::CenterClamped));
     }
@@ -391,7 +414,7 @@ mod tests {
     #[test]
     fn center_clamp_limits_imag_and_both_axes() {
         let limits = FlightLimits {
-            max_center_abs: 1.0,
+            max_center_abs: 0.2,
             ..FlightLimits::default()
         };
 
@@ -401,10 +424,7 @@ mod tests {
         };
         let imag_motion = motion([0.0, 1.0], 1.0);
         step_flight(&mut imag_config, &imag_motion, 1.0, &limits);
-        assert_approx_eq(
-            (imag_config.region.top_left().imag + imag_config.region.bottom_right().imag) * 0.5,
-            1.0,
-        );
+        assert_region_center(&imag_config.region, 0.0, 0.2);
 
         let mut both_config = JuliaConfig {
             region: rect(-1.0, -1.0, 1.0, 1.0),
@@ -412,14 +432,7 @@ mod tests {
         };
         let both_motion = motion([1.0, 1.0], 1.0);
         step_flight(&mut both_config, &both_motion, 1.0, &limits);
-        assert_approx_eq(
-            (both_config.region.top_left().real + both_config.region.bottom_right().real) * 0.5,
-            1.0,
-        );
-        assert_approx_eq(
-            (both_config.region.top_left().imag + both_config.region.bottom_right().imag) * 0.5,
-            1.0,
-        );
+        assert_region_center(&both_config.region, 0.2, 0.2);
     }
 
     #[test]

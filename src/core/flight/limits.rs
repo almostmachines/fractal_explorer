@@ -6,6 +6,8 @@ pub struct FlightLimits {
     pub min_region_extent: f64,
     pub max_region_extent: f64,
     pub max_center_abs: f64,
+    pub zoom_base: f64,
+    pub steer_strength: f64,
     pub max_ticks_per_redraw: u32,
 }
 
@@ -29,6 +31,8 @@ impl Default for FlightLimits {
             min_region_extent: 1e-15,
             max_region_extent: 20.0,
             max_center_abs: 100.0,
+            zoom_base: 2.0,
+            steer_strength: 0.5,
             max_ticks_per_redraw: 10,
         }
     }
@@ -48,11 +52,16 @@ mod tests {
         assert!(limits.min_region_extent.is_finite());
         assert!(limits.max_region_extent.is_finite());
         assert!(limits.max_center_abs.is_finite());
+        assert!(limits.zoom_base.is_finite());
+        assert!(limits.steer_strength.is_finite());
         assert!(limits.max_ticks_per_redraw > 0);
         assert!(limits.min_region_extent > 0.0);
         assert!(limits.max_region_extent >= limits.min_region_extent);
         assert!(limits.max_speed_abs_world_per_sec >= 0.0);
         assert!(limits.max_center_abs >= 0.0);
+        assert!(limits.zoom_base > 0.0);
+        assert_ne!(limits.zoom_base, 1.0);
+        assert!(limits.steer_strength >= 0.0);
     }
 
     #[test]

@@ -288,10 +288,15 @@ impl<T: GuiPresenterPort> GuiApp<T> {
                     };
 
                     ui.label(format!("Status: {}", activity_label));
-                    ui.label(format!("Speed: {:.2} u/s", flight_status.speed));
+                    ui.label(format!("Speed: {:.2} zoom/s", flight_status.speed));
                     ui.label(format!(
                         "Heading: ({:.2}, {:.2})",
                         flight_status.heading[0], flight_status.heading[1]
+                    ));
+                    ui.label(format!(
+                        "Extent: w={:.4}, h={:.4}",
+                        active_region.width(),
+                        active_region.height()
                     ));
 
                     if let Some(warning) = flight_status.last_warning {
