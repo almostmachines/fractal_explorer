@@ -1,24 +1,30 @@
 use crate::controllers::interactive::InteractiveController;
+use crate::controllers::interactive::data::fractal_config::FractalConfig;
+use crate::controllers::interactive::flight::{FlightSimulator, RenderScheduler, SchedulerAction};
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
+use crate::core::flight::{FlightLimits, FlightWarning};
 use crate::core::fractals::fractal_kinds::FractalKinds;
 use crate::core::fractals::julia::colour_mapping::kinds::JuliaColourMapKinds;
+use crate::core::fractals::julia::flight as julia_flight;
 use crate::core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds;
+use crate::core::fractals::mandelbrot::flight as mandelbrot_flight;
 use crate::input::gui::app::events::gui::GuiEvent;
+use crate::input::gui::app::flight_input::FlightInputState;
 use crate::input::gui::app::ports::presenter::GuiPresenterPort;
 use crate::input::gui::app::state::GuiAppState;
 use egui::Context;
 use egui_winit::State as EguiWinitState;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
+    keyboard::PhysicalKey,
     window::Window,
 };
 
-pub struct GuiApp<T: GuiPresenterPort>
-{
+pub struct GuiApp<T: GuiPresenterPort> {
     window: &'static Window,
     width: u32,
     height: u32,
@@ -26,14 +32,18 @@ pub struct GuiApp<T: GuiPresenterPort>
     presenter: T,
     pub controller: InteractiveController,
     ui_state: GuiAppState,
+    flight_input: FlightInputState,
+    flight_sim: FlightSimulator,
+    scheduler: RenderScheduler,
+    last_redraw_instant: Instant,
+    last_selected_fractal: FractalKinds,
     last_render_duration: Option<Duration>,
     last_error_message: Option<String>,
     pub egui_ctx: Context,
     pub egui_state: EguiWinitState,
 }
 
-impl<T: GuiPresenterPort> GuiApp<T>
-{
+impl<T: GuiPresenterPort> GuiApp<T> {
     pub fn new(
         window: &'static Window,
         event_loop: &EventLoop<GuiEvent>,
@@ -43,6 +53,8 @@ impl<T: GuiPresenterPort> GuiApp<T>
         let size = window.inner_size();
         let scale_factor = window.scale_factor();
         let egui_ctx = Context::default();
+        let ui_state = GuiAppState::default();
+        let last_selected_fractal = ui_state.selected_fractal;
 
         let egui_state = EguiWinitState::new(
             egui_ctx.clone(),
@@ -59,7 +71,12 @@ impl<T: GuiPresenterPort> GuiApp<T>
             scale_factor,
             presenter,
             controller,
-            ui_state: GuiAppState::default(),
+            ui_state,
+            flight_input: FlightInputState::default(),
+            flight_sim: FlightSimulator::new(FlightLimits::default()),
+            scheduler: RenderScheduler::new(),
+            last_redraw_instant: Instant::now(),
+            last_selected_fractal,
             last_render_duration: None,
             last_error_message: None,
             egui_ctx,
@@ -68,7 +85,11 @@ impl<T: GuiPresenterPort> GuiApp<T>
     }
 
     pub fn render(&mut self, egui_output: egui::FullOutput) -> Result<(), pixels::Error> {
-        self.presenter.render(egui_output, &self.egui_ctx, self.ui_state.latest_submitted_generation)
+        self.presenter.render(
+            egui_output,
+            &self.egui_ctx,
+            self.ui_state.latest_submitted_generation,
+        )
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -82,9 +103,9 @@ impl<T: GuiPresenterPort> GuiApp<T>
         self.presenter.resize(width, height);
     }
 
-    pub fn submit_render_request_if_needed(&mut self) {
+    fn build_desired_request(&self) -> Option<Arc<FractalConfig>> {
         if self.width < 1 || self.height < 1 {
-            return;
+            return None;
         }
 
         let pixel_rect = match PixelRect::new(
@@ -95,15 +116,50 @@ impl<T: GuiPresenterPort> GuiApp<T>
             },
         ) {
             Ok(rect) => rect,
-            Err(_) => return,
+            Err(_) => return None,
         };
 
-        let request = self.ui_state.build_render_request(pixel_rect);
+        Some(Arc::new(self.ui_state.build_render_request(pixel_rect)))
+    }
 
-        if self.ui_state.should_submit(&request) {
-            let request = Arc::new(request);
-            let generation = self.controller.submit_request(Arc::clone(&request));
-            self.ui_state.record_submission(request, generation);
+    fn warning_label(warning: FlightWarning) -> &'static str {
+        match warning {
+            FlightWarning::SpeedClamped => "Speed clamped",
+            FlightWarning::CenterClamped => "Center clamped",
+            FlightWarning::ExtentClamped => "Extent clamped",
+            FlightWarning::NonFiniteReset => "Non-finite reset",
+        }
+    }
+
+    fn update_flight_simulation(&mut self, elapsed: Duration, text_editing: bool) {
+        let selected_fractal = self.ui_state.selected_fractal;
+        let flight_input = &mut self.flight_input;
+        let ui_state = &mut self.ui_state;
+
+        let _ = self.flight_sim.advance(
+            elapsed,
+            || flight_input.snapshot(text_editing),
+            |motion, dt, limits| match selected_fractal {
+                FractalKinds::Mandelbrot => {
+                    mandelbrot_flight::step_flight(&mut ui_state.mandelbrot, motion, dt, limits)
+                }
+                FractalKinds::Julia => {
+                    julia_flight::step_flight(&mut ui_state.julia, motion, dt, limits)
+                }
+            },
+        );
+    }
+
+    fn schedule_desired_request(&mut self, desired_request: Arc<FractalConfig>) {
+        let action = self.scheduler.update(
+            Arc::clone(&desired_request),
+            self.flight_sim.is_active(),
+            self.controller.last_completed_generation(),
+            |request| self.controller.submit_request(request),
+        );
+
+        if let SchedulerAction::Submitted { generation } = action {
+            self.ui_state.record_submission(desired_request, generation);
             self.last_error_message = None;
         }
     }
@@ -114,7 +170,7 @@ impl<T: GuiPresenterPort> GuiApp<T>
         self.egui_ctx.run(raw_input, |ctx| {
             egui::Window::new("Debug Panel")
                 .default_pos([10.0, 10.0])
-                .default_size([260.0, 220.0])
+                .default_size([300.0, 320.0])
                 .show(ctx, |ui| {
                     ui.heading("Fractal Explorer");
                     ui.separator();
@@ -219,10 +275,41 @@ impl<T: GuiPresenterPort> GuiApp<T>
                         self.ui_state.latest_submitted_generation
                     ));
 
+                    ui.separator();
+                    ui.heading("Flight");
+
+                    let flight_status = self.flight_sim.status();
+                    let activity_label = if flight_status.paused {
+                        "Paused"
+                    } else if self.flight_sim.is_active() {
+                        "Active"
+                    } else {
+                        "Idle"
+                    };
+
+                    ui.label(format!("Status: {}", activity_label));
+                    ui.label(format!("Speed: {:.2} u/s", flight_status.speed));
+                    ui.label(format!(
+                        "Heading: ({:.2}, {:.2})",
+                        flight_status.heading[0], flight_status.heading[1]
+                    ));
+
+                    if let Some(warning) = flight_status.last_warning {
+                        ui.label(format!("Warning: {}", Self::warning_label(warning)));
+                    }
+
+                    if let Some(in_flight_generation) = self.scheduler.in_flight_generation() {
+                        ui.label(format!("In-flight gen: {}", in_flight_generation));
+                    }
+                    ui.label(format!(
+                        "Scheduler pending: {}",
+                        self.scheduler.has_pending()
+                    ));
+
                     if let Some(render_duration) = self.last_render_duration {
                         ui.label(format!("Last render: {} ms", render_duration.as_millis()));
                     }
-                    
+
                     if let Some(message) = &self.last_error_message {
                         ui.separator();
                         ui.colored_label(egui::Color32::LIGHT_RED, message);
@@ -248,10 +335,17 @@ impl<T: GuiPresenterPort> GuiApp<T>
                         ref event,
                         window_id,
                     } if window_id == self.window.id() => {
-                        let (egui_consumed, egui_repaint) = self.handle_window_event(self.window, event);
+                        let (egui_consumed, egui_repaint) =
+                            self.handle_window_event(self.window, event);
 
                         if egui_repaint {
                             self.ui_state.redraw_pending = true;
+                        }
+
+                        if let WindowEvent::KeyboardInput { event, .. } = event {
+                            if let PhysicalKey::Code(key_code) = event.physical_key {
+                                self.flight_input.handle_key_event(key_code, event.state);
+                            }
                         }
 
                         match event {
@@ -261,10 +355,41 @@ impl<T: GuiPresenterPort> GuiApp<T>
                             }
                             WindowEvent::RedrawRequested => {
                                 self.ui_state.redraw_pending = false;
+                                self.scheduler.observe_completion(
+                                    self.controller.last_completed_generation(),
+                                );
 
                                 let egui_output = self.update_ui(self.window);
 
-                                self.submit_render_request_if_needed();
+                                if self.ui_state.selected_fractal != self.last_selected_fractal {
+                                    self.flight_sim.reset_motion();
+                                    self.flight_input.reset();
+                                    self.scheduler.reset();
+                                    self.last_selected_fractal = self.ui_state.selected_fractal;
+                                }
+
+                                let now = Instant::now();
+                                let elapsed =
+                                    now.saturating_duration_since(self.last_redraw_instant);
+                                self.last_redraw_instant = now;
+
+                                let text_editing = self.egui_ctx.wants_keyboard_input();
+                                self.update_flight_simulation(elapsed, text_editing);
+
+                                let mut request_to_schedule: Option<Arc<FractalConfig>> = None;
+                                if let Some(desired_request) = self.build_desired_request() {
+                                    let request_changed =
+                                        self.ui_state.should_submit(desired_request.as_ref());
+                                    let should_schedule =
+                                        request_changed || self.scheduler.has_pending();
+
+                                    if should_schedule {
+                                        request_to_schedule = Some(desired_request);
+                                    }
+                                }
+
+                                self.ui_state.redraw_pending =
+                                    self.flight_sim.is_active() || self.scheduler.has_pending();
 
                                 self.egui_state.handle_platform_output(
                                     self.window,
@@ -283,6 +408,14 @@ impl<T: GuiPresenterPort> GuiApp<T>
                                     eprintln!("Render error: {e}");
                                     elwt.exit();
                                 }
+
+                                if let Some(desired_request) = request_to_schedule {
+                                    self.schedule_desired_request(desired_request);
+                                    self.ui_state.redraw_pending = true;
+                                }
+
+                                self.ui_state.redraw_pending |=
+                                    self.flight_sim.is_active() || self.scheduler.has_pending();
                             }
                             WindowEvent::Resized(size) => {
                                 self.resize(size.width, size.height);

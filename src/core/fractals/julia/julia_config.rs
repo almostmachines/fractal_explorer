@@ -1,8 +1,17 @@
-use crate::{controllers::interactive::data::fractal_config::FractalConfig, core::{data::{complex::Complex, complex_rect::ComplexRect, pixel_rect::PixelRect}, fractals::julia::{algorithm::JuliaAlgorithm, colour_mapping::{factory::julia_colour_map_factory, kinds::JuliaColourMapKinds}}}};
+use crate::{
+    controllers::interactive::data::fractal_config::FractalConfig,
+    core::{
+        data::{complex::Complex, complex_rect::ComplexRect, pixel_rect::PixelRect},
+        fractals::julia::{
+            algorithm::JuliaAlgorithm,
+            colour_mapping::{factory::julia_colour_map_factory, kinds::JuliaColourMapKinds},
+        },
+    },
+};
 
 const DEFAULT_MAX_ITERATIONS: u32 = 256;
 
-fn default_region() -> ComplexRect {
+pub(crate) fn default_region() -> ComplexRect {
     ComplexRect::new(
         Complex {
             real: -2.5,

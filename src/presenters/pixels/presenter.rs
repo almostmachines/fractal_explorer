@@ -1,18 +1,18 @@
-use std::sync::Arc;
-use std::time::Duration;
-use pixels::Pixels;
-use pixels::SurfaceTexture;
-use pixels::wgpu;
-use egui::Context as EguiContext;
-use egui_wgpu::Renderer as EguiRenderer;
-use winit::event_loop::EventLoopProxy;
-use winit::window::Window;
-use crate::controllers::interactive::ports::presenter::InteractiveControllerPresenterPort;
 use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::controllers::interactive::events::render::RenderEvent;
+use crate::controllers::interactive::ports::presenter::InteractiveControllerPresenterPort;
 use crate::input::gui::app::events::gui::GuiEvent;
 use crate::input::gui::app::ports::presenter::GuiPresenterPort;
 use crate::presenters::pixels::adapter::PixelsAdapter;
+use egui::Context as EguiContext;
+use egui_wgpu::Renderer as EguiRenderer;
+use pixels::Pixels;
+use pixels::SurfaceTexture;
+use pixels::wgpu;
+use std::sync::Arc;
+use std::time::Duration;
+use winit::event_loop::EventLoopProxy;
+use winit::window::Window;
 
 pub struct PixelsPresenter {
     pixels: Pixels<'static>,
@@ -21,6 +21,7 @@ pub struct PixelsPresenter {
     width: u32,
     height: u32,
     has_frame: bool,
+    last_presented_generation: u64,
     last_error_message: Option<String>,
     last_render_duration: Option<Duration>,
 }
@@ -43,10 +44,11 @@ impl GuiPresenterPort for PixelsPresenter {
         Self {
             pixels,
             egui_renderer,
-            adapter: Arc::new(PixelsAdapter::new(event_loop_proxy),),
+            adapter: Arc::new(PixelsAdapter::new(event_loop_proxy)),
             width: size.width,
             height: size.height,
             has_frame: false,
+            last_presented_generation: 0,
             last_error_message: None,
             last_render_duration: None,
         }
@@ -56,12 +58,17 @@ impl GuiPresenterPort for PixelsPresenter {
         Arc::clone(&self.adapter) as Arc<dyn InteractiveControllerPresenterPort>
     }
 
-    fn render(&mut self, egui_output: egui::FullOutput, egui_ctx: &EguiContext, requested_generation: u64) -> Result<(), pixels::Error> {
+    fn render(
+        &mut self,
+        egui_output: egui::FullOutput,
+        egui_ctx: &EguiContext,
+        _requested_generation: u64,
+    ) -> Result<(), pixels::Error> {
         if self.width == 0 || self.height == 0 {
             return Ok(());
         }
 
-        self.maybe_draw_frame(requested_generation);
+        self.maybe_draw_frame();
 
         if !self.has_frame {
             self.draw_placeholder();
@@ -71,7 +78,8 @@ impl GuiPresenterPort for PixelsPresenter {
             // First, render the pixels framebuffer (the scaling pass)
             context.scaling_renderer.render(encoder, render_target);
 
-            let clipped_primitives = egui_ctx.tessellate(egui_output.shapes, egui_ctx.pixels_per_point());
+            let clipped_primitives =
+                egui_ctx.tessellate(egui_output.shapes, egui_ctx.pixels_per_point());
 
             let screen_descriptor = egui_wgpu::ScreenDescriptor {
                 size_in_pixels: [self.width, self.height],
@@ -141,7 +149,6 @@ impl GuiPresenterPort for PixelsPresenter {
 
         self.has_frame = false;
     }
-
 }
 
 impl PixelsPresenter {
@@ -155,24 +162,25 @@ impl PixelsPresenter {
         }
     }
 
-    pub fn maybe_draw_frame(&mut self, requested_generation: u64) {
+    pub fn maybe_draw_frame(&mut self) {
         if let Some(event) = self.adapter.render_event() {
             match event {
                 RenderEvent::Frame(frame) => {
                     let pixel_rect = frame.pixel_buffer.pixel_rect();
 
-                    if frame.generation == requested_generation
+                    if frame.generation > self.last_presented_generation
                         && pixel_rect.width() == self.width
                         && pixel_rect.height() == self.height
                     {
                         self.copy_pixel_buffer_into_pixels_frame(&frame);
                         self.has_frame = true;
+                        self.last_presented_generation = frame.generation;
                         self.last_render_duration = Some(frame.render_duration);
                         self.last_error_message = None;
                     }
                 }
                 RenderEvent::Error(error) => {
-                    if error.generation == requested_generation {
+                    if error.generation >= self.last_presented_generation {
                         self.last_error_message = Some(error.message);
                     }
                 }

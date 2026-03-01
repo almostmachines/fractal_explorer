@@ -3,13 +3,13 @@ use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::controllers::interactive::errors::render::RenderError;
 use crate::controllers::interactive::events::render::RenderEvent;
 use crate::controllers::interactive::ports::presenter::InteractiveControllerPresenterPort;
+use crate::core::actions::cancellation::CancelToken;
 use crate::core::actions::generate_fractal::generate_fractal_parallel_rayon::{
-    generate_fractal_parallel_rayon_cancelable, GenerateFractalError,
+    GenerateFractalError, generate_fractal_parallel_rayon_cancelable,
 };
 use crate::core::actions::generate_pixel_buffer::generate_pixel_buffer::{
-    generate_pixel_buffer_cancelable, GeneratePixelBufferCancelableError,
+    GeneratePixelBufferCancelableError, generate_pixel_buffer_cancelable,
 };
-use crate::core::actions::cancellation::CancelToken;
 use crate::core::data::pixel_buffer::PixelBuffer;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
@@ -18,6 +18,7 @@ use std::time::Instant;
 
 struct SharedState {
     generation: AtomicU64,
+    last_completed_generation: AtomicU64,
     latest_request: Mutex<Option<(u64, Arc<FractalConfig>)>>,
     wake: Condvar,
     shutdown: AtomicBool,
@@ -33,6 +34,7 @@ impl InteractiveController {
     pub fn new(presenter_port: Arc<dyn InteractiveControllerPresenterPort>) -> Self {
         let shared = Arc::new(SharedState {
             generation: AtomicU64::new(0),
+            last_completed_generation: AtomicU64::new(0),
             latest_request: Mutex::new(None),
             wake: Condvar::new(),
             shutdown: AtomicBool::new(false),
@@ -71,6 +73,13 @@ impl InteractiveController {
         if let Some(handle) = self.worker.take() {
             let _ = handle.join();
         }
+    }
+
+    #[must_use]
+    pub fn last_completed_generation(&self) -> u64 {
+        self.shared
+            .last_completed_generation
+            .load(Ordering::Acquire)
     }
 
     fn worker_loop(shared: &Arc<SharedState>) {
@@ -112,6 +121,10 @@ impl InteractiveController {
                         pixel_buffer,
                         render_duration,
                     }));
+
+                    shared
+                        .last_completed_generation
+                        .store(job_generation, Ordering::Release);
                 }
                 Err(RenderOutcome::Cancelled) => {
                     continue;
@@ -129,6 +142,10 @@ impl InteractiveController {
                             generation: job_generation,
                             message,
                         }));
+
+                    shared
+                        .last_completed_generation
+                        .store(job_generation, Ordering::Release);
                 }
             }
         }
@@ -142,8 +159,7 @@ impl InteractiveController {
         let colour_map = request.colour_map();
         let pixel_rect = algorithm.pixel_rect();
 
-        let fractal =
-            generate_fractal_parallel_rayon_cancelable(pixel_rect, algorithm, cancel)
+        let fractal = generate_fractal_parallel_rayon_cancelable(pixel_rect, algorithm, cancel)
             .map_err(|e| match e {
                 GenerateFractalError::Cancelled(_) => RenderOutcome::Cancelled,
                 GenerateFractalError::Algorithm(err) => RenderOutcome::Error(err.to_string()),
@@ -153,18 +169,18 @@ impl InteractiveController {
             return Err(RenderOutcome::Cancelled);
         }
 
-        let pixel_buffer =
-            generate_pixel_buffer_cancelable(fractal, colour_map, pixel_rect, cancel).map_err(
-                |e| match e {
-                    GeneratePixelBufferCancelableError::Cancelled(_) => RenderOutcome::Cancelled,
-                    GeneratePixelBufferCancelableError::ColourMap(err) => {
-                        RenderOutcome::Error(err.to_string())
-                    }
-                    GeneratePixelBufferCancelableError::PixelBuffer(err) => {
-                        RenderOutcome::Error(err.to_string())
-                    }
-                },
-            )?;
+        let pixel_buffer = generate_pixel_buffer_cancelable(
+            fractal, colour_map, pixel_rect, cancel,
+        )
+        .map_err(|e| match e {
+            GeneratePixelBufferCancelableError::Cancelled(_) => RenderOutcome::Cancelled,
+            GeneratePixelBufferCancelableError::ColourMap(err) => {
+                RenderOutcome::Error(err.to_string())
+            }
+            GeneratePixelBufferCancelableError::PixelBuffer(err) => {
+                RenderOutcome::Error(err.to_string())
+            }
+        })?;
 
         Ok(pixel_buffer)
     }
@@ -255,13 +271,37 @@ mod tests {
         }
     }
 
+    fn create_error_request(pixel_rect: PixelRect) -> FractalConfig {
+        let region = ComplexRect::new(
+            Complex {
+                real: -0.1,
+                imag: -0.1,
+            },
+            Complex {
+                real: 0.1,
+                imag: 0.1,
+            },
+        )
+        .expect("test region is valid");
+
+        let max_iterations = 10;
+        let algorithm = MandelbrotAlgorithm::new(pixel_rect, region, max_iterations)
+            .expect("test algorithm params are valid");
+        let colour_map =
+            mandelbrot_colour_map_factory(MandelbrotColourMapKinds::BlueWhiteGradient, 1);
+
+        FractalConfig::Mandelbrot {
+            colour_map,
+            algorithm,
+        }
+    }
+
     #[test]
     fn test_submit_request_emits_frame() {
         let presenter_port = Arc::new(MockPresenterPort::default());
-        let mut controller =
-            InteractiveController::new(
-                Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
-            );
+        let mut controller = InteractiveController::new(
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+        );
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = Arc::new(create_test_request(pixel_rect));
@@ -296,10 +336,9 @@ mod tests {
     #[test]
     fn test_generation_ids_increment() {
         let presenter_port = Arc::new(MockPresenterPort::default());
-        let mut controller =
-            InteractiveController::new(
-                Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
-            );
+        let mut controller = InteractiveController::new(
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+        );
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = Arc::new(create_test_request(pixel_rect));
@@ -337,6 +376,107 @@ mod tests {
     }
 
     #[test]
+    fn test_last_completed_generation_starts_at_zero() {
+        let presenter_port = Arc::new(MockPresenterPort::default());
+        let mut controller = InteractiveController::new(
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+        );
+
+        assert_eq!(controller.last_completed_generation(), 0);
+
+        controller.shutdown();
+    }
+
+    #[test]
+    fn test_last_completed_generation_updates_after_frame_completion() {
+        let presenter_port = Arc::new(MockPresenterPort::default());
+        let mut controller = InteractiveController::new(
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+        );
+
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
+        let request = Arc::new(create_test_request(pixel_rect));
+
+        let submitted_generation = controller.submit_request(request);
+        let events = wait_for_events(presenter_port.as_ref(), Duration::from_secs(2));
+        assert!(!events.is_empty(), "expected a render event");
+
+        let completed_generation = extract_generation(&events);
+
+        assert_eq!(completed_generation, submitted_generation);
+        assert_eq!(controller.last_completed_generation(), completed_generation);
+
+        controller.shutdown();
+    }
+
+    #[test]
+    fn test_last_completed_generation_updates_after_error_completion() {
+        let presenter_port = Arc::new(MockPresenterPort::default());
+        let mut controller = InteractiveController::new(
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+        );
+
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
+        let request = Arc::new(create_error_request(pixel_rect));
+
+        let submitted_generation = controller.submit_request(request);
+        let events = wait_for_events(presenter_port.as_ref(), Duration::from_secs(2));
+        assert!(!events.is_empty(), "expected an error render event");
+
+        let mut saw_error = false;
+        for event in &events {
+            if let RenderEvent::Error(error) = event {
+                saw_error = true;
+                assert_eq!(error.generation, submitted_generation);
+            }
+        }
+
+        assert!(saw_error, "expected at least one error event");
+        assert_eq!(controller.last_completed_generation(), submitted_generation);
+
+        controller.shutdown();
+    }
+
+    #[test]
+    fn test_last_completed_generation_is_monotonic_across_mixed_completions() {
+        let presenter_port = Arc::new(MockPresenterPort::default());
+        let mut controller = InteractiveController::new(
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+        );
+
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
+
+        let frame_generation = controller.submit_request(Arc::new(create_test_request(pixel_rect)));
+        let frame_events = wait_for_events(presenter_port.as_ref(), Duration::from_secs(2));
+        assert!(!frame_events.is_empty(), "expected frame completion events");
+        assert_eq!(extract_generation(&frame_events), frame_generation);
+        let after_frame = controller.last_completed_generation();
+
+        let error_generation =
+            controller.submit_request(Arc::new(create_error_request(pixel_rect)));
+        let error_events = wait_for_events(presenter_port.as_ref(), Duration::from_secs(2));
+        assert!(!error_events.is_empty(), "expected error completion events");
+        assert_eq!(extract_generation(&error_events), error_generation);
+        let after_error = controller.last_completed_generation();
+
+        let frame_generation_2 =
+            controller.submit_request(Arc::new(create_test_request(pixel_rect)));
+        let frame_events_2 = wait_for_events(presenter_port.as_ref(), Duration::from_secs(2));
+        assert!(
+            !frame_events_2.is_empty(),
+            "expected second frame completion events"
+        );
+        assert_eq!(extract_generation(&frame_events_2), frame_generation_2);
+        let after_frame_2 = controller.last_completed_generation();
+
+        assert!(after_frame >= frame_generation);
+        assert!(after_error >= after_frame);
+        assert!(after_frame_2 >= after_error);
+
+        controller.shutdown();
+    }
+
+    #[test]
     fn test_ui_layer_filters_stale_generations() {
         // Simulate presenter behavior without actual GUI.
         // This tests the filtering logic that the UI layer should implement.
@@ -364,7 +504,10 @@ mod tests {
         };
 
         // Simulate out-of-order frame arrivals
-        assert!(state.present(3), "Frame 3 should be presented (first frame)");
+        assert!(
+            state.present(3),
+            "Frame 3 should be presented (first frame)"
+        );
         assert_eq!(state.last_presented_generation, 3);
 
         assert!(
@@ -400,10 +543,9 @@ mod tests {
         // Submit multiple rapid requests; the controller should emit only Frame events
         // (no Error events for cancelled work).
         let presenter_port = Arc::new(MockPresenterPort::default());
-        let mut controller =
-            InteractiveController::new(
-                Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
-            );
+        let mut controller = InteractiveController::new(
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+        );
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = Arc::new(create_test_request(pixel_rect));
@@ -428,8 +570,15 @@ mod tests {
         }
 
         // At least one frame should have been emitted (the last non-cancelled one)
-        let frame_count = events.iter().filter(|e| matches!(e, RenderEvent::Frame(_))).count();
-        assert!(frame_count >= 1, "Expected at least one frame event, got {}", frame_count);
+        let frame_count = events
+            .iter()
+            .filter(|e| matches!(e, RenderEvent::Frame(_)))
+            .count();
+        assert!(
+            frame_count >= 1,
+            "Expected at least one frame event, got {}",
+            frame_count
+        );
 
         controller.shutdown();
     }
@@ -438,10 +587,9 @@ mod tests {
     fn test_newest_request_yields_emitted_frame() {
         // Submit multiple requests; the final frame should have the highest generation.
         let presenter_port = Arc::new(MockPresenterPort::default());
-        let mut controller =
-            InteractiveController::new(
-                Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
-            );
+        let mut controller = InteractiveController::new(
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+        );
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = Arc::new(create_test_request(pixel_rect));
@@ -476,7 +624,10 @@ mod tests {
         );
 
         // There should be at least one frame
-        assert!(max_emitted_gen > 0, "Expected at least one frame to be emitted");
+        assert!(
+            max_emitted_gen > 0,
+            "Expected at least one frame to be emitted"
+        );
 
         controller.shutdown();
     }
@@ -487,10 +638,9 @@ mod tests {
         // We verify this by checking that Frame events only contain valid pixel buffers
         // (i.e., no partially rendered or corrupted data).
         let presenter_port = Arc::new(MockPresenterPort::default());
-        let mut controller =
-            InteractiveController::new(
-                Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
-            );
+        let mut controller = InteractiveController::new(
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+        );
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = Arc::new(create_test_request(pixel_rect));

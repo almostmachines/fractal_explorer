@@ -1,8 +1,19 @@
-use crate::{controllers::interactive::data::fractal_config::FractalConfig, core::{data::{complex::Complex, complex_rect::ComplexRect, pixel_rect::PixelRect}, fractals::mandelbrot::{algorithm::MandelbrotAlgorithm, colour_mapping::{factory::mandelbrot_colour_map_factory, kinds::MandelbrotColourMapKinds}}}};
+use crate::{
+    controllers::interactive::data::fractal_config::FractalConfig,
+    core::{
+        data::{complex::Complex, complex_rect::ComplexRect, pixel_rect::PixelRect},
+        fractals::mandelbrot::{
+            algorithm::MandelbrotAlgorithm,
+            colour_mapping::{
+                factory::mandelbrot_colour_map_factory, kinds::MandelbrotColourMapKinds,
+            },
+        },
+    },
+};
 
 const DEFAULT_MAX_ITERATIONS: u32 = 256;
 
-fn default_region() -> ComplexRect {
+pub(crate) fn default_region() -> ComplexRect {
     ComplexRect::new(
         Complex {
             real: -2.5,
