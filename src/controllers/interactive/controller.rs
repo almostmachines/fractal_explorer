@@ -1,7 +1,3 @@
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
-use std::thread::{self, JoinHandle};
-use std::time::Instant;
 use crate::controllers::interactive::data::fractal_config::FractalConfig;
 use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::controllers::interactive::errors::render::RenderError;
@@ -15,6 +11,10 @@ use crate::core::actions::generate_pixel_buffer::generate_pixel_buffer::{
 };
 use crate::core::actions::cancellation::CancelToken;
 use crate::core::data::pixel_buffer::PixelBuffer;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
+use std::thread::{self, JoinHandle};
+use std::time::Instant;
 
 struct SharedState {
     generation: AtomicU64,

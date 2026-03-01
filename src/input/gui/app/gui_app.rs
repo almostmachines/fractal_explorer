@@ -1,14 +1,16 @@
-use std::sync::Arc;
-use std::time::Duration;
-use egui::Context;
-use egui_winit::State as EguiWinitState;
-use crate::core::fractals::julia::colour_mapping::kinds::JuliaColourMapKinds;
-use crate::input::gui::app::events::gui::GuiEvent;
-use crate::input::gui::app::state::GuiAppState;
-use crate::input::gui::app::ports::presenter::GuiPresenterPort;
 use crate::controllers::interactive::InteractiveController;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
+use crate::core::fractals::fractal_kinds::FractalKinds;
+use crate::core::fractals::julia::colour_mapping::kinds::JuliaColourMapKinds;
+use crate::core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds;
+use crate::input::gui::app::events::gui::GuiEvent;
+use crate::input::gui::app::ports::presenter::GuiPresenterPort;
+use crate::input::gui::app::state::GuiAppState;
+use egui::Context;
+use egui_winit::State as EguiWinitState;
+use std::sync::Arc;
+use std::time::Duration;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
@@ -118,22 +120,14 @@ impl<T: GuiPresenterPort> GuiApp<T>
                     ui.separator();
 
                     ui.horizontal(|ui| {
-                        ui.label("Max iterations:");
-                        ui.add(egui::Slider::new(
-                            &mut self.ui_state.max_iterations,
-                            1..=1000,
-                        ));
-                    });
+                        ui.label("Fractal:");
 
-                    ui.horizontal(|ui| {
-                        ui.label("Colour map:");
-
-                        egui::ComboBox::from_id_source("mandelbrot_colour_map")
-                            .selected_text(self.ui_state.colour_map_kind.display_name())
+                        egui::ComboBox::from_id_source("fractal_kind")
+                            .selected_text(self.ui_state.selected_fractal.display_name())
                             .show_ui(ui, |ui| {
-                                for &kind in JuliaColourMapKinds::ALL {
+                                for &kind in FractalKinds::ALL {
                                     ui.selectable_value(
-                                        &mut self.ui_state.colour_map_kind,
+                                        &mut self.ui_state.selected_fractal,
                                         kind,
                                         kind.display_name(),
                                     );
@@ -141,11 +135,67 @@ impl<T: GuiPresenterPort> GuiApp<T>
                             });
                     });
 
+                    ui.horizontal(|ui| {
+                        ui.label("Max iterations:");
+                        match self.ui_state.selected_fractal {
+                            FractalKinds::Mandelbrot => {
+                                ui.add(egui::Slider::new(
+                                    &mut self.ui_state.mandelbrot.max_iterations,
+                                    1..=1000,
+                                ));
+                            }
+                            FractalKinds::Julia => {
+                                ui.add(egui::Slider::new(
+                                    &mut self.ui_state.julia.max_iterations,
+                                    1..=1000,
+                                ));
+                            }
+                        }
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Colour map:");
+
+                        match self.ui_state.selected_fractal {
+                            FractalKinds::Mandelbrot => {
+                                egui::ComboBox::from_id_source("fractal_colour_map")
+                                    .selected_text(
+                                        self.ui_state.mandelbrot.colour_map_kind.display_name(),
+                                    )
+                                    .show_ui(ui, |ui| {
+                                        for &kind in MandelbrotColourMapKinds::ALL {
+                                            ui.selectable_value(
+                                                &mut self.ui_state.mandelbrot.colour_map_kind,
+                                                kind,
+                                                kind.display_name(),
+                                            );
+                                        }
+                                    });
+                            }
+                            FractalKinds::Julia => {
+                                egui::ComboBox::from_id_source("fractal_colour_map")
+                                    .selected_text(
+                                        self.ui_state.julia.colour_map_kind.display_name(),
+                                    )
+                                    .show_ui(ui, |ui| {
+                                        for &kind in JuliaColourMapKinds::ALL {
+                                            ui.selectable_value(
+                                                &mut self.ui_state.julia.colour_map_kind,
+                                                kind,
+                                                kind.display_name(),
+                                            );
+                                        }
+                                    });
+                            }
+                        }
+                    });
+
                     ui.separator();
                     ui.label("View region:");
 
-                    let top_left = self.ui_state.region.top_left();
-                    let bottom_right = self.ui_state.region.bottom_right();
+                    let active_region = self.ui_state.active_region();
+                    let top_left = active_region.top_left();
+                    let bottom_right = active_region.bottom_right();
 
                     ui.label(format!(
                         "Real: [{:.4}, {:.4}]",
