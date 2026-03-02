@@ -7,7 +7,7 @@ use crate::core::fractals::mandelbrot::errors::mandelbrot::MandelbrotError;
 use crate::core::util::pixel_to_complex_coords::{
     PixelToComplexCoordsError, pixel_to_complex_coords,
 };
-use std::ops::ControlFlow;
+const PERIODICITY_EPSILON: f64 = 1e-12;
 
 #[derive(Debug, PartialEq)]
 pub struct MandelbrotAlgorithm {
@@ -27,23 +27,36 @@ impl FractalAlgorithm for MandelbrotAlgorithm {
             return Ok(self.max_iterations);
         }
 
-        let z = Complex {
+        let mut z = Complex {
             real: 0.0,
             imag: 0.0,
         };
+        let mut z_ref = z;
+        let mut power = 1u32;
+        let mut lambda = 0u32;
 
-        let iterations = (1..=self.max_iterations).try_fold(z, |z0, iteration| {
-            if z0.magnitude_squared() > 4.0 {
-                ControlFlow::Break(iteration - 1)
-            } else {
-                ControlFlow::Continue(z0 * z0 + c)
+        for iteration in 1..=self.max_iterations {
+            z = z * z + c;
+
+            if z.magnitude_squared() > 4.0 {
+                return Ok(iteration);
             }
-        });
 
-        Ok(match iterations {
-            ControlFlow::Break(iteration) => iteration,
-            ControlFlow::Continue(_) => self.max_iterations,
-        })
+            let dr = z.real - z_ref.real;
+            let di = z.imag - z_ref.imag;
+            if dr * dr + di * di < PERIODICITY_EPSILON {
+                return Ok(self.max_iterations);
+            }
+
+            lambda += 1;
+            if lambda == power {
+                z_ref = z;
+                power *= 2;
+                lambda = 0;
+            }
+        }
+
+        Ok(self.max_iterations)
     }
 
     fn pixel_rect(&self) -> PixelRect {
