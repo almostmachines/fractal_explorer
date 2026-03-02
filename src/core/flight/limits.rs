@@ -32,7 +32,7 @@ impl Default for FlightLimits {
             max_region_extent: 20.0,
             max_center_abs: 100.0,
             zoom_base: 2.0,
-            steer_strength: 1.5,
+            steer_strength: 0.5,
             max_ticks_per_redraw: 10,
         }
     }

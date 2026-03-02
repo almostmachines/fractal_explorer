@@ -19,7 +19,7 @@ pub fn step_flight(
     let scale = limits.zoom_base.powf(-motion.speed_world_per_sec * dt);
 
     if let Some(region) =
-        scaled_region_about_focal(&config.region, scale, motion.heading, limits.steer_strength)
+        scaled_region_about_focal(&config.region, scale, motion.heading, limits.steer_strength, dt)
     {
         config.region = region;
     } else {
@@ -106,8 +106,9 @@ fn scaled_region_about_focal(
     scale: f64,
     heading: [f64; 2],
     steer_strength: f64,
+    dt: f64,
 ) -> Option<ComplexRect> {
-    if !scale.is_finite() || scale <= 0.0 || !steer_strength.is_finite() {
+    if !scale.is_finite() || scale <= 0.0 || !steer_strength.is_finite() || !dt.is_finite() {
         return None;
     }
 
@@ -115,12 +116,11 @@ fn scaled_region_about_focal(
     let height = region.height();
     let (center_real, center_imag) = region_center(region);
 
-    let offset_real = heading[0] * steer_strength * width;
-    let offset_imag = heading[1] * steer_strength * height;
-    let center_scale = 1.0 - scale;
+    let pan_real = heading[0] * steer_strength * width * dt;
+    let pan_imag = heading[1] * steer_strength * height * dt;
 
-    let new_center_real = center_real + (center_scale * offset_real);
-    let new_center_imag = center_imag + (center_scale * offset_imag);
+    let new_center_real = center_real + pan_real;
+    let new_center_imag = center_imag + pan_imag;
     let new_width = width * scale;
     let new_height = height * scale;
 
@@ -298,7 +298,7 @@ mod tests {
         let motion = motion([1.0, 0.0], 1.0);
         let dt = 1.0;
         let scale = limits.zoom_base.powf(-motion.speed_world_per_sec * dt);
-        let expected_center_shift = (1.0 - scale) * limits.steer_strength * 4.0;
+        let expected_center_shift = dt * limits.steer_strength * 4.0;
 
         step_flight(&mut config, &motion, dt, &limits);
 
@@ -308,7 +308,7 @@ mod tests {
     }
 
     #[test]
-    fn negative_speed_drifts_opposite_heading() {
+    fn negative_speed_pans_same_direction_as_heading() {
         let limits = FlightLimits::default();
         let mut config = MandelbrotConfig {
             region: rect(-2.0, -1.0, 2.0, 1.0),
@@ -317,11 +317,11 @@ mod tests {
         let motion = motion([1.0, 0.0], -1.0);
         let dt = 1.0;
         let scale = limits.zoom_base.powf(-motion.speed_world_per_sec * dt);
-        let expected_center_shift = (1.0 - scale) * limits.steer_strength * 4.0;
+        let expected_center_shift = dt * limits.steer_strength * 4.0;
 
         step_flight(&mut config, &motion, dt, &limits);
 
-        assert!(expected_center_shift < 0.0);
+        assert!(expected_center_shift > 0.0);
         assert_region_center(&config.region, expected_center_shift, 0.0);
         assert_approx_eq(config.region.width(), 4.0 * scale);
         assert_approx_eq(config.region.height(), 2.0 * scale);
