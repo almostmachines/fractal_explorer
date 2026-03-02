@@ -1,6 +1,6 @@
 use std::{path::Path, time::Instant};
 
-use crate::{controllers::ports::file_presenter::FilePresenterPort, core::{actions::{generate_fractal::generate_fractal_parallel_rayon::generate_fractal_parallel_rayon, generate_pixel_buffer::generate_pixel_buffer::generate_pixel_buffer}, data::{complex::Complex, complex_rect::ComplexRect, pixel_buffer::PixelBuffer, pixel_rect::PixelRect, point::Point}, fractals::mandelbrot::{algorithm::MandelbrotAlgorithm, colour_mapping::maps::fire_gradient::MandelbrotFireGradient}}};
+use crate::{controllers::ports::file_presenter::FilePresenterPort, core::{actions::{generate_fractal::generate_fractal_parallel_rayon::generate_fractal_parallel_rayon, generate_pixel_buffer::generate_pixel_buffer::generate_pixel_buffer}, data::{complex::Complex, complex_rect::ComplexRect, pixel_buffer::PixelBuffer, pixel_rect::PixelRect, point::Point}, fractals::mandelbrot::{algorithm::MandelbrotAlgorithm, colour_mapping::maps::fire::MandelbrotFireColourMap}}};
 
 pub struct CliTestController<P: FilePresenterPort> {
     presenter: P,
@@ -50,7 +50,7 @@ impl<P: FilePresenterPort> CliTestController<P> {
 
         println!("Duration:   {:?}", duration);
 
-        let colour_map = MandelbrotFireGradient::new(max_iterations);
+        let colour_map = MandelbrotFireColourMap::new(max_iterations);
 
         self.buffer = Some(generate_pixel_buffer(fractal, &colour_map, pixel_rect)?);
 

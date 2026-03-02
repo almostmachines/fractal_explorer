@@ -12,7 +12,7 @@ impl JuliaColourMapKinds {
     #[must_use]
     pub const fn display_name(self) -> &'static str {
         match self {
-            Self::FireGradient => "Fire gradient",
+            Self::FireGradient => "Fire",
             Self::BlueWhiteGradient => "Ice",
         }
     }

@@ -1,19 +1,19 @@
 use crate::core::actions::generate_pixel_buffer::ports::colour_map::ColourMap;
 use crate::core::data::colour::Colour;
-use crate::core::fractals::mandelbrot::colour_mapping::errors::MandelbrotColourMapErrors;
-use crate::core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds;
-use crate::core::fractals::mandelbrot::colour_mapping::map::MandelbrotColourMap;
+use crate::core::fractals::julia::colour_mapping::errors::JuliaColourMapErrors;
+use crate::core::fractals::julia::colour_mapping::kinds::JuliaColourMapKinds;
+use crate::core::fractals::julia::colour_mapping::map::JuliaColourMap;
 use std::error::Error;
 
 #[derive(Debug)]
-pub struct MandelbrotFireGradient {
+pub struct JuliaFireColourMap {
     max_iterations: u32,
 }
 
-impl ColourMap<u32> for MandelbrotFireGradient {
+impl ColourMap<u32> for JuliaFireColourMap {
     fn map(&self, iterations: u32) -> Result<Colour, Box<dyn Error>> {
         if iterations > self.max_iterations {
-            return Err(Box::new(MandelbrotColourMapErrors::IterationsExceedMax {
+            return Err(Box::new(JuliaColourMapErrors::IterationsExceedMax {
                 iterations,
                 max_iterations: self.max_iterations,
             }));
@@ -63,13 +63,13 @@ impl ColourMap<u32> for MandelbrotFireGradient {
     }
 }
 
-impl MandelbrotColourMap for MandelbrotFireGradient {
-    fn kind(&self) -> MandelbrotColourMapKinds {
-        MandelbrotColourMapKinds::FireGradient
+impl JuliaColourMap for JuliaFireColourMap {
+    fn kind(&self) -> JuliaColourMapKinds {
+        JuliaColourMapKinds::FireGradient
     }
 }
 
-impl MandelbrotFireGradient {
+impl JuliaFireColourMap {
     #[must_use]
     pub fn new(max_iterations: u32) -> Self {
         Self { max_iterations }
@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn test_map_returns_black_at_max_iterations() {
-        let mapper = MandelbrotFireGradient::new(100);
+        let mapper = JuliaFireColourMap::new(100);
         let colour = mapper.map(100).unwrap();
 
         assert_eq!(colour.r, 0);
@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn test_map_returns_black_at_zero_iterations() {
-        let mapper = MandelbrotFireGradient::new(100);
+        let mapper = JuliaFireColourMap::new(100);
         let colour = mapper.map(0).unwrap();
 
         assert_eq!(colour.r, 0);
@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn test_map_midpoint_gradient() {
-        let mapper = MandelbrotFireGradient::new(100);
+        let mapper = JuliaFireColourMap::new(100);
         let colour = mapper.map(50).unwrap();
 
         assert_eq!(colour.r, 255);
@@ -112,13 +112,13 @@ mod tests {
 
     #[test]
     fn test_map_returns_error_when_iterations_exceed_max() {
-        let mapper = MandelbrotFireGradient::new(100);
+        let mapper = JuliaFireColourMap::new(100);
         let result = mapper.map(101);
         let err = result.expect_err("expected error when iterations exceed max");
 
         assert!(matches!(
-            err.downcast_ref::<MandelbrotColourMapErrors>(),
-            Some(MandelbrotColourMapErrors::IterationsExceedMax {
+            err.downcast_ref::<JuliaColourMapErrors>(),
+            Some(JuliaColourMapErrors::IterationsExceedMax {
                 iterations: 101,
                 max_iterations: 100
             })

@@ -1,4 +1,4 @@
-use crate::core::fractals::mandelbrot::colour_mapping::{kinds::MandelbrotColourMapKinds, map::MandelbrotColourMap, maps::{ice::MandelbrotIceColourMap, fire_gradient::MandelbrotFireGradient}};
+use crate::core::fractals::mandelbrot::colour_mapping::{kinds::MandelbrotColourMapKinds, map::MandelbrotColourMap, maps::{ice::MandelbrotIceColourMap, fire::MandelbrotFireColourMap}};
 
 #[must_use]
 pub fn mandelbrot_colour_map_factory(
@@ -7,7 +7,7 @@ pub fn mandelbrot_colour_map_factory(
 ) -> Box<dyn MandelbrotColourMap> {
     match kind {
         MandelbrotColourMapKinds::FireGradient => {
-            Box::new(MandelbrotFireGradient::new(max_iterations))
+            Box::new(MandelbrotFireColourMap::new(max_iterations))
         }
         MandelbrotColourMapKinds::BlueWhiteGradient => {
             Box::new(MandelbrotIceColourMap::new(max_iterations))

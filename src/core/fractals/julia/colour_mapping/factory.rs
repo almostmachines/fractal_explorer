@@ -1,4 +1,4 @@
-use crate::core::fractals::julia::colour_mapping::{kinds::JuliaColourMapKinds, map::JuliaColourMap, maps::{ice::JuliaIceColourMap, fire_gradient::JuliaFireGradient}};
+use crate::core::fractals::julia::colour_mapping::{kinds::JuliaColourMapKinds, map::JuliaColourMap, maps::{ice::JuliaIceColourMap, fire::JuliaFireColourMap}};
 
 #[must_use]
 pub fn julia_colour_map_factory(
@@ -7,7 +7,7 @@ pub fn julia_colour_map_factory(
 ) -> Box<dyn JuliaColourMap> {
     match kind {
         JuliaColourMapKinds::FireGradient => {
-            Box::new(JuliaFireGradient::new(max_iterations))
+            Box::new(JuliaFireColourMap::new(max_iterations))
         }
         JuliaColourMapKinds::BlueWhiteGradient => {
             Box::new(JuliaIceColourMap::new(max_iterations))
