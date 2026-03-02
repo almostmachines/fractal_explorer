@@ -29,7 +29,7 @@ cargo run --bin gui --features gui   # run GUI app
 ## Coding Style & Naming Conventions
 
 - Rust edition: 2024 (use idiomatic std error types; prefer `Result<T, E>` with explicit error enums).
-- Formatting: `cargo fmt` (4-space indent; rustfmt defaults).
+- Never run `cargo fmt` unless requested.
 - Naming: modules/functions `snake_case`, types/traits `PascalCase`, constants `SCREAMING_SNAKE_CASE`.
 - Keep GUI-only code behind `cfg(feature = "gui")` and avoid leaking GUI types into `src/core/`.
 
@@ -38,6 +38,7 @@ cargo run --bin gui --features gui   # run GUI app
 - Use Rust’s built-in test harness (`#[cfg(test)] mod tests { ... }`) colocated with the code under test.
 - Prefer fast, deterministic unit tests for `src/core/` invariants (e.g., `PixelRect`, mapping, algorithms).
 - If a change affects GUI state logic, add/extend tests in `src/input/gui/app/`.
+- Never run `cargo clippy` unless requested.
 
 ## Commit & Pull Request Guidelines
 
