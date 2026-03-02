@@ -22,11 +22,8 @@ A Rust-based Mandelbrot fractal renderer with both CLI and interactive GUI capab
 ```bash
 cargo build                 # compile default (non-GUI) target
 cargo run                   # generate output/mandelbrot.ppm
-cargo test                  # run unit tests
+cargo test --features gui            # run unit tests
 cargo run --bin gui --features gui   # run GUI app
-
-cargo fmt                   # format (rustfmt)
-cargo clippy --all-targets --all-features -- -D warnings  # lint
 ```
 
 ## Coding Style & Naming Conventions
