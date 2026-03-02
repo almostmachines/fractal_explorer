@@ -1,2 +1,2 @@
-pub mod blue_white_gradient;
+pub mod ice;
 pub mod fire_gradient;

@@ -13,7 +13,7 @@ impl MandelbrotColourMapKinds {
     pub const fn display_name(self) -> &'static str {
         match self {
             Self::FireGradient => "Fire gradient",
-            Self::BlueWhiteGradient => "Blue-white gradient",
+            Self::BlueWhiteGradient => "Ice",
         }
     }
 }
