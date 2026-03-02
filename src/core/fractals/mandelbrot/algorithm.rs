@@ -22,6 +22,11 @@ impl FractalAlgorithm for MandelbrotAlgorithm {
 
     fn compute(&self, pixel: Point) -> Result<Self::Success, Self::Failure> {
         let c = pixel_to_complex_coords(pixel, self.pixel_rect, self.complex_rect)?;
+
+        if Self::in_main_cardioid(c) || Self::in_period2_bulb(c) {
+            return Ok(self.max_iterations);
+        }
+
         let z = Complex {
             real: 0.0,
             imag: 0.0,
@@ -47,6 +52,17 @@ impl FractalAlgorithm for MandelbrotAlgorithm {
 }
 
 impl MandelbrotAlgorithm {
+    /// Returns true if c lies inside the main cardioid of the Mandelbrot set.
+    fn in_main_cardioid(c: Complex) -> bool {
+        let q = (c.real - 0.25) * (c.real - 0.25) + c.imag * c.imag;
+        q * (q + (c.real - 0.25)) <= 0.25 * c.imag * c.imag
+    }
+
+    /// Returns true if c lies inside the period-2 bulb (circle centred at -1+0i, radius 1/4).
+    fn in_period2_bulb(c: Complex) -> bool {
+        (c.real + 1.0) * (c.real + 1.0) + c.imag * c.imag <= 0.0625
+    }
+
     pub fn new(
         pixel_rect: PixelRect,
         complex_rect: ComplexRect,
