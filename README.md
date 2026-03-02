@@ -56,9 +56,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full details.
 ## Development
 
 ```bash
-cargo test
-cargo fmt
-cargo clippy --all-targets --all-features -- -D warnings
+carge test --features gui
 ```
 
 ## License
