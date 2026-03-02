@@ -394,6 +394,7 @@ mod tests {
     fn center_clamp_limits_real_and_preserves_dimensions() {
         let limits = FlightLimits {
             max_center_abs: 0.2,
+            steer_strength: 0.5,
             ..FlightLimits::default()
         };
         let mut config = JuliaConfig {
@@ -415,6 +416,7 @@ mod tests {
     fn center_clamp_limits_imag_and_both_axes() {
         let limits = FlightLimits {
             max_center_abs: 0.2,
+            steer_strength: 0.5,
             ..FlightLimits::default()
         };
 

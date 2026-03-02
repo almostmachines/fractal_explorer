@@ -301,7 +301,7 @@ mod tests {
 
         assert_eq!(simulator.status().paused, false);
         assert_eq!(simulator.status().speed, 0.0);
-        assert_eq!(simulator.status().heading, [0.0, -1.0]);
+        assert_eq!(simulator.status().heading, [0.0, 0.0]);
         assert_eq!(simulator.status().last_warning, None);
         assert!(!simulator.is_active());
     }

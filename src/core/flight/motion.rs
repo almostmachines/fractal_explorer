@@ -2,7 +2,7 @@ use crate::core::flight::controls::FlightControlsSnapshot;
 use crate::core::flight::limits::FlightLimits;
 use crate::core::flight::status::FlightWarning;
 
-const DEFAULT_HEADING: [f64; 2] = [0.0, -1.0];
+const DEFAULT_HEADING: [f64; 2] = [0.0, 0.0];
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MotionState {
@@ -49,12 +49,12 @@ pub fn step_motion(
         return report;
     }
 
-    resolve_heading(motion, controls);
+    let safe_dt = if dt.is_finite() { dt } else { 0.0 };
+
+    resolve_heading(motion, controls, safe_dt);
 
     motion.accel_world_per_sec2 =
         effective_acceleration(controls, limits.base_accel_world_per_sec2);
-
-    let safe_dt = if dt.is_finite() { dt } else { 0.0 };
     motion.speed_world_per_sec += motion.accel_world_per_sec2 * safe_dt;
 
     let max_speed_abs = limits.max_speed_abs_world_per_sec.abs();
@@ -72,7 +72,7 @@ pub fn step_motion(
     report
 }
 
-fn resolve_heading(motion: &mut MotionState, controls: FlightControlsSnapshot) {
+fn resolve_heading(motion: &mut MotionState, controls: FlightControlsSnapshot, dt: f64) {
     let x = axis_from_pair(controls.d, controls.a);
     let y = axis_from_pair(controls.s, controls.w);
     let length_sq = (x * x) + (y * y);
@@ -80,8 +80,19 @@ fn resolve_heading(motion: &mut MotionState, controls: FlightControlsSnapshot) {
     if length_sq > 0.0 {
         let inv_length = length_sq.sqrt().recip();
         motion.heading = [x * inv_length, y * inv_length];
+    } else {
+        let decay = (-dt / HEADING_DECAY_TIME_CONSTANT).exp();
+        motion.heading[0] *= decay;
+        motion.heading[1] *= decay;
+        let mag_sq = motion.heading[0] * motion.heading[0] + motion.heading[1] * motion.heading[1];
+        if mag_sq < HEADING_ZERO_THRESHOLD * HEADING_ZERO_THRESHOLD {
+            motion.heading = [0.0, 0.0];
+        }
     }
 }
+
+const HEADING_DECAY_TIME_CONSTANT: f64 = 0.3;
+const HEADING_ZERO_THRESHOLD: f64 = 0.01;
 
 fn axis_from_pair(positive: bool, negative: bool) -> f64 {
     match (positive, negative) {
@@ -128,7 +139,7 @@ mod tests {
         let motion = MotionState::default();
 
         assert!(!motion.paused);
-        assert_eq!(motion.heading, [0.0, -1.0]);
+        assert_eq!(motion.heading, [0.0, 0.0]);
         assert_eq!(motion.speed_world_per_sec, 0.0);
         assert_eq!(motion.accel_world_per_sec2, 0.0);
     }
@@ -242,28 +253,52 @@ mod tests {
     }
 
     #[test]
-    fn no_wasd_keeps_existing_heading() {
+    fn no_wasd_decays_heading_toward_zero() {
         let mut motion = MotionState {
             heading: [1.0, 0.0],
             ..MotionState::default()
         };
+        let dt = default_limits().dt();
 
         step_motion(
             &mut motion,
             FlightControlsSnapshot::default(),
-            default_limits().dt(),
+            dt,
             &default_limits(),
         );
 
-        assert_eq!(motion.heading, [1.0, 0.0]);
+        let expected_decay = (-dt / super::HEADING_DECAY_TIME_CONSTANT).exp();
+        assert_approx_eq(motion.heading[0], expected_decay);
+        assert_approx_eq(motion.heading[1], 0.0);
     }
 
     #[test]
-    fn all_wasd_cancels_to_zero_vector_and_keeps_heading() {
+    fn no_wasd_heading_reaches_zero_after_sufficient_time() {
+        let mut motion = MotionState {
+            heading: [1.0, 0.0],
+            ..MotionState::default()
+        };
+        let dt = default_limits().dt();
+
+        for _ in 0..300 {
+            step_motion(
+                &mut motion,
+                FlightControlsSnapshot::default(),
+                dt,
+                &default_limits(),
+            );
+        }
+
+        assert_eq!(motion.heading, [0.0, 0.0]);
+    }
+
+    #[test]
+    fn all_wasd_cancels_to_zero_vector_and_decays_heading() {
         let mut motion = MotionState {
             heading: [0.0, 1.0],
             ..MotionState::default()
         };
+        let dt = default_limits().dt();
         let controls = FlightControlsSnapshot {
             w: true,
             a: true,
@@ -272,14 +307,11 @@ mod tests {
             ..FlightControlsSnapshot::default()
         };
 
-        step_motion(
-            &mut motion,
-            controls,
-            default_limits().dt(),
-            &default_limits(),
-        );
+        step_motion(&mut motion, controls, dt, &default_limits());
 
-        assert_eq!(motion.heading, [0.0, 1.0]);
+        let expected_decay = (-dt / super::HEADING_DECAY_TIME_CONSTANT).exp();
+        assert_approx_eq(motion.heading[0], 0.0);
+        assert_approx_eq(motion.heading[1], expected_decay);
     }
 
     #[test]

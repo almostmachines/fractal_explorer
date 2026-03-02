@@ -25,7 +25,7 @@ impl Default for FlightStatus {
         Self {
             paused: false,
             speed: 0.0,
-            heading: [0.0, -1.0],
+            heading: [0.0, 0.0],
             last_warning: None,
         }
     }
