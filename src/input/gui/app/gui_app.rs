@@ -168,7 +168,7 @@ impl<T: GuiPresenterPort> GuiApp<T> {
         let raw_input = self.egui_state.take_egui_input(window);
 
         self.egui_ctx.run(raw_input, |ctx| {
-            egui::Window::new("Debug Panel")
+            egui::Window::new("Settings")
                 .default_pos([10.0, 10.0])
                 .default_size([300.0, 320.0])
                 .show(ctx, |ui| {
