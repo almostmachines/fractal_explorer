@@ -77,21 +77,25 @@ fn resolve_heading(motion: &mut MotionState, controls: FlightControlsSnapshot, d
     let y = axis_from_pair(controls.s, controls.w);
     let length_sq = (x * x) + (y * y);
 
-    if length_sq > 0.0 {
+    let (target_x, target_y) = if length_sq > 0.0 {
         let inv_length = length_sq.sqrt().recip();
-        motion.heading = [x * inv_length, y * inv_length];
+        (x * inv_length, y * inv_length)
     } else {
-        let decay = (-dt / HEADING_DECAY_TIME_CONSTANT).exp();
-        motion.heading[0] *= decay;
-        motion.heading[1] *= decay;
-        let mag_sq = motion.heading[0] * motion.heading[0] + motion.heading[1] * motion.heading[1];
-        if mag_sq < HEADING_ZERO_THRESHOLD * HEADING_ZERO_THRESHOLD {
-            motion.heading = [0.0, 0.0];
-        }
+        (0.0, 0.0)
+    };
+
+    // Exponential approach toward target heading (symmetric ramp-up and decay)
+    let blend = 1.0 - (-dt / HEADING_RAMP_TIME_CONSTANT).exp();
+    motion.heading[0] += (target_x - motion.heading[0]) * blend;
+    motion.heading[1] += (target_y - motion.heading[1]) * blend;
+
+    let mag_sq = motion.heading[0] * motion.heading[0] + motion.heading[1] * motion.heading[1];
+    if mag_sq < HEADING_ZERO_THRESHOLD * HEADING_ZERO_THRESHOLD {
+        motion.heading = [0.0, 0.0];
     }
 }
 
-const HEADING_DECAY_TIME_CONSTANT: f64 = 0.3;
+const HEADING_RAMP_TIME_CONSTANT: f64 = 0.15;
 const HEADING_ZERO_THRESHOLD: f64 = 0.01;
 
 fn axis_from_pair(positive: bool, negative: bool) -> f64 {
@@ -145,111 +149,108 @@ mod tests {
     }
 
     #[test]
-    fn w_only_sets_up_heading() {
-        let mut motion = MotionState {
-            heading: [1.0, 0.0],
-            ..MotionState::default()
-        };
+    fn w_only_ramps_toward_up_heading() {
+        let mut motion = MotionState::default();
         let controls = FlightControlsSnapshot {
             w: true,
             ..FlightControlsSnapshot::default()
         };
+        let dt = default_limits().dt();
 
-        step_motion(
-            &mut motion,
-            controls,
-            default_limits().dt(),
-            &default_limits(),
-        );
+        // Single tick: heading moves toward [0, -1] but doesn't reach it
+        step_motion(&mut motion, controls, dt, &default_limits());
+        assert!(motion.heading[1] < 0.0, "should move toward negative y");
+        assert!(motion.heading[1] > -0.5, "should not reach full heading in one tick");
+        assert_approx_eq(motion.heading[0], 0.0);
 
-        assert_eq!(motion.heading, [0.0, -1.0]);
+        // After many ticks: converges to [0, -1]
+        for _ in 0..300 {
+            step_motion(&mut motion, controls, dt, &default_limits());
+        }
+        assert_approx_eq(motion.heading[0], 0.0);
+        assert_approx_eq(motion.heading[1], -1.0);
     }
 
     #[test]
-    fn s_only_sets_down_heading() {
-        let mut motion = MotionState {
-            heading: [1.0, 0.0],
-            ..MotionState::default()
-        };
+    fn s_only_ramps_toward_down_heading() {
+        let mut motion = MotionState::default();
         let controls = FlightControlsSnapshot {
             s: true,
             ..FlightControlsSnapshot::default()
         };
+        let dt = default_limits().dt();
 
-        step_motion(
-            &mut motion,
-            controls,
-            default_limits().dt(),
-            &default_limits(),
-        );
-
-        assert_eq!(motion.heading, [0.0, 1.0]);
+        for _ in 0..300 {
+            step_motion(&mut motion, controls, dt, &default_limits());
+        }
+        assert_approx_eq(motion.heading[0], 0.0);
+        assert_approx_eq(motion.heading[1], 1.0);
     }
 
     #[test]
-    fn a_only_sets_left_heading() {
-        let mut motion = MotionState {
-            heading: [0.0, -1.0],
-            ..MotionState::default()
-        };
+    fn a_only_ramps_toward_left_heading() {
+        let mut motion = MotionState::default();
         let controls = FlightControlsSnapshot {
             a: true,
             ..FlightControlsSnapshot::default()
         };
+        let dt = default_limits().dt();
 
-        step_motion(
-            &mut motion,
-            controls,
-            default_limits().dt(),
-            &default_limits(),
-        );
-
-        assert_eq!(motion.heading, [-1.0, 0.0]);
+        for _ in 0..300 {
+            step_motion(&mut motion, controls, dt, &default_limits());
+        }
+        assert_approx_eq(motion.heading[0], -1.0);
+        assert_approx_eq(motion.heading[1], 0.0);
     }
 
     #[test]
-    fn d_only_sets_right_heading() {
-        let mut motion = MotionState {
-            heading: [0.0, -1.0],
-            ..MotionState::default()
-        };
+    fn d_only_ramps_toward_right_heading() {
+        let mut motion = MotionState::default();
         let controls = FlightControlsSnapshot {
             d: true,
             ..FlightControlsSnapshot::default()
         };
+        let dt = default_limits().dt();
 
-        step_motion(
-            &mut motion,
-            controls,
-            default_limits().dt(),
-            &default_limits(),
-        );
-
-        assert_eq!(motion.heading, [1.0, 0.0]);
+        for _ in 0..300 {
+            step_motion(&mut motion, controls, dt, &default_limits());
+        }
+        assert_approx_eq(motion.heading[0], 1.0);
+        assert_approx_eq(motion.heading[1], 0.0);
     }
 
     #[test]
-    fn w_and_d_normalizes_diagonal_heading() {
+    fn w_and_d_ramps_toward_normalized_diagonal() {
         let mut motion = MotionState::default();
         let controls = FlightControlsSnapshot {
             w: true,
             d: true,
             ..FlightControlsSnapshot::default()
         };
+        let dt = default_limits().dt();
 
-        step_motion(
-            &mut motion,
-            controls,
-            default_limits().dt(),
-            &default_limits(),
-        );
+        for _ in 0..300 {
+            step_motion(&mut motion, controls, dt, &default_limits());
+        }
 
         assert_approx_eq(motion.heading[0], FRAC_1_SQRT_2);
         assert_approx_eq(motion.heading[1], -FRAC_1_SQRT_2);
+    }
 
-        let heading_length =
-            (motion.heading[0] * motion.heading[0] + motion.heading[1] * motion.heading[1]).sqrt();
-        assert_approx_eq(heading_length, 1.0);
+    #[test]
+    fn single_tick_heading_ramp_matches_time_constant() {
+        let mut motion = MotionState::default();
+        let controls = FlightControlsSnapshot {
+            d: true,
+            ..FlightControlsSnapshot::default()
+        };
+        let dt = default_limits().dt();
+
+        step_motion(&mut motion, controls, dt, &default_limits());
+
+        let expected_blend = 1.0 - (-dt / super::HEADING_RAMP_TIME_CONSTANT).exp();
+        assert_approx_eq(motion.heading[0], expected_blend);
+        assert_approx_eq(motion.heading[1], 0.0);
     }
 
     #[test]
@@ -267,7 +268,7 @@ mod tests {
             &default_limits(),
         );
 
-        let expected_decay = (-dt / super::HEADING_DECAY_TIME_CONSTANT).exp();
+        let expected_decay = (-dt / super::HEADING_RAMP_TIME_CONSTANT).exp();
         assert_approx_eq(motion.heading[0], expected_decay);
         assert_approx_eq(motion.heading[1], 0.0);
     }
@@ -309,7 +310,7 @@ mod tests {
 
         step_motion(&mut motion, controls, dt, &default_limits());
 
-        let expected_decay = (-dt / super::HEADING_DECAY_TIME_CONSTANT).exp();
+        let expected_decay = (-dt / super::HEADING_RAMP_TIME_CONSTANT).exp();
         assert_approx_eq(motion.heading[0], 0.0);
         assert_approx_eq(motion.heading[1], expected_decay);
     }
