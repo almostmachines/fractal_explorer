@@ -110,7 +110,7 @@ where
     CMap: ColourMap<T> + ?Sized,
     C: CancelToken,
 {
-    let buffer_size = (pixel_rect.size() * 3) as usize;
+    let buffer_size = pixel_rect.size() as usize * PixelBuffer::BYTES_PER_PIXEL;
     let mut buffer: PixelBufferData = Vec::with_capacity(buffer_size);
 
     for (i, value) in input.into_iter().enumerate() {
@@ -125,6 +125,7 @@ where
         buffer.push(r);
         buffer.push(g);
         buffer.push(b);
+        buffer.push(PixelBuffer::ALPHA_OPAQUE);
     }
 
     PixelBuffer::from_data(pixel_rect, buffer)
@@ -140,6 +141,10 @@ mod tests {
     use crate::core::data::pixel_rect::PixelRect;
     use crate::core::data::point::Point;
     use std::sync::atomic::{AtomicBool, Ordering};
+
+    fn expected_buffer_size(width: usize, height: usize) -> usize {
+        width * height * PixelBuffer::BYTES_PER_PIXEL
+    }
 
     #[derive(Debug)]
     struct StubColourMapSuccess {}
@@ -176,8 +181,32 @@ mod tests {
         let input: Vec<u8> = vec![1, 2, 3, 4, 5, 6];
         let mapper = StubColourMapSuccess {};
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 2, y: 1 }).unwrap();
-        let expected_buffer: PixelBufferData =
-            vec![1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6];
+        let expected_buffer: PixelBufferData = vec![
+            1,
+            1,
+            1,
+            PixelBuffer::ALPHA_OPAQUE,
+            2,
+            2,
+            2,
+            PixelBuffer::ALPHA_OPAQUE,
+            3,
+            3,
+            3,
+            PixelBuffer::ALPHA_OPAQUE,
+            4,
+            4,
+            4,
+            PixelBuffer::ALPHA_OPAQUE,
+            5,
+            5,
+            5,
+            PixelBuffer::ALPHA_OPAQUE,
+            6,
+            6,
+            6,
+            PixelBuffer::ALPHA_OPAQUE,
+        ];
         let expected_results = PixelBuffer::from_data(pixel_rect, expected_buffer).unwrap();
         let results = generate_pixel_buffer(input, &mapper, pixel_rect).unwrap();
 
@@ -207,10 +236,11 @@ mod tests {
             results,
             Err(GeneratePixelBufferError::PixelBuffer(
                 PixelBufferError::BoundsMismatch {
-                    pixel_rect_size: 12,
-                    buffer_size: 18
+                    pixel_rect_size,
+                    buffer_size
                 }
-            ))
+            )) if pixel_rect_size == expected_buffer_size(2, 2)
+                && buffer_size == expected_buffer_size(3, 2)
         ));
     }
 
@@ -219,9 +249,36 @@ mod tests {
         let input: Vec<u8> = vec![1, 2, 3, 4, 5, 6];
         let mapper = StubColourMapSuccess {};
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 2, y: 1 }).unwrap();
-        let expected_buffer: PixelBufferData = vec![1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6];
+        let expected_buffer: PixelBufferData = vec![
+            1,
+            1,
+            1,
+            PixelBuffer::ALPHA_OPAQUE,
+            2,
+            2,
+            2,
+            PixelBuffer::ALPHA_OPAQUE,
+            3,
+            3,
+            3,
+            PixelBuffer::ALPHA_OPAQUE,
+            4,
+            4,
+            4,
+            PixelBuffer::ALPHA_OPAQUE,
+            5,
+            5,
+            5,
+            PixelBuffer::ALPHA_OPAQUE,
+            6,
+            6,
+            6,
+            PixelBuffer::ALPHA_OPAQUE,
+        ];
         let expected_results = PixelBuffer::from_data(pixel_rect, expected_buffer).unwrap();
-        let results = generate_pixel_buffer_cancelable_impl(input, &mapper, pixel_rect, &NeverCancel).unwrap();
+        let results =
+            generate_pixel_buffer_cancelable_impl(input, &mapper, pixel_rect, &NeverCancel)
+                .unwrap();
 
         assert_eq!(results.buffer(), expected_results.buffer());
         assert_eq!(results.pixel_rect(), expected_results.pixel_rect());
@@ -278,10 +335,13 @@ mod tests {
         let result = generate_pixel_buffer_cancelable(input, &mapper, pixel_rect, &NeverCancel);
 
         assert!(result.is_ok());
-        
+
         let pixel_buffer = result.unwrap();
 
-        assert_eq!(pixel_buffer.buffer().len(), 18);
+        assert_eq!(
+            pixel_buffer.buffer().len(),
+            expected_buffer_size(3, 2)
+        );
     }
 
     #[test]

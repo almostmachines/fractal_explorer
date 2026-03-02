@@ -319,7 +319,8 @@ mod tests {
                     assert_eq!(frame.pixel_buffer.pixel_rect(), pixel_rect);
                     assert_eq!(
                         frame.pixel_buffer.buffer().len(),
-                        (pixel_rect.width() * pixel_rect.height() * 3) as usize
+                        (pixel_rect.width() * pixel_rect.height()) as usize
+                            * PixelBuffer::BYTES_PER_PIXEL
                     );
                     saw_frame = true;
                 }
@@ -644,7 +645,8 @@ mod tests {
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
         let request = Arc::new(create_test_request(pixel_rect));
-        let expected_buffer_size = (pixel_rect.width() * pixel_rect.height() * 3) as usize;
+        let expected_buffer_size =
+            (pixel_rect.width() * pixel_rect.height()) as usize * PixelBuffer::BYTES_PER_PIXEL;
 
         // Submit requests
         controller.submit_request(Arc::clone(&request));

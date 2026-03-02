@@ -1,6 +1,7 @@
 use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::controllers::interactive::events::render::RenderEvent;
 use crate::controllers::interactive::ports::presenter::InteractiveControllerPresenterPort;
+use crate::core::data::pixel_buffer::PixelBuffer;
 use crate::input::gui::app::events::gui::GuiEvent;
 use crate::input::gui::app::ports::presenter::GuiPresenterPort;
 use crate::presenters::pixels::adapter::PixelsAdapter;
@@ -154,11 +155,11 @@ impl GuiPresenterPort for PixelsPresenter {
 impl PixelsPresenter {
     fn draw_placeholder(&mut self) {
         let frame = self.pixels.frame_mut();
-        for pixel in frame.chunks_exact_mut(4) {
+        for pixel in frame.chunks_exact_mut(PixelBuffer::BYTES_PER_PIXEL) {
             pixel[0] = 0;
             pixel[1] = 0;
             pixel[2] = 0;
-            pixel[3] = 255;
+            pixel[3] = PixelBuffer::ALPHA_OPAQUE;
         }
     }
 
@@ -192,9 +193,19 @@ impl PixelsPresenter {
         let pixel_rect = frame.pixel_buffer.pixel_rect();
         let width = pixel_rect.width();
         let height = pixel_rect.height();
-        let expected_rgba_len = (width * height * 4) as usize;
+        let expected_rgba_len = (width * height) as usize * PixelBuffer::BYTES_PER_PIXEL;
         let src = frame.pixel_buffer.buffer();
         let dest = self.pixels.frame_mut();
+
+        assert_eq!(
+            src.len(),
+            expected_rgba_len,
+            "pixel buffer length {} does not match expected {} for {}x{}",
+            src.len(),
+            expected_rgba_len,
+            width,
+            height
+        );
 
         assert_eq!(
             dest.len(),
@@ -206,11 +217,6 @@ impl PixelsPresenter {
             height
         );
 
-        for (src_pixel, dst_pixel) in src.chunks_exact(3).zip(dest.chunks_exact_mut(4)) {
-            dst_pixel[0] = src_pixel[0];
-            dst_pixel[1] = src_pixel[1];
-            dst_pixel[2] = src_pixel[2];
-            dst_pixel[3] = 255;
-        }
+        dest.copy_from_slice(src);
     }
 }
