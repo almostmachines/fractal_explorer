@@ -6,6 +6,10 @@ pub enum JuliaColourMapErrors {
         iterations: u32,
         max_iterations: u32,
     },
+    LutInvariantBroken {
+        iterations: u32,
+        max_iterations: u32,
+    },
 }
 
 impl fmt::Display for JuliaColourMapErrors {
@@ -21,8 +25,58 @@ impl fmt::Display for JuliaColourMapErrors {
                     iterations, max_iterations
                 )
             }
+            Self::LutInvariantBroken {
+                iterations,
+                max_iterations,
+            } => write!(
+                f,
+                "internal LUT invariant broken: iterations {} must be in 0..={} for lookup",
+                iterations, max_iterations
+            ),
         }
     }
 }
 
 impl Error for JuliaColourMapErrors {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn iterations_exceed_max_still_formats_and_matches_as_before() {
+        let err = JuliaColourMapErrors::IterationsExceedMax {
+            iterations: 101,
+            max_iterations: 100,
+        };
+
+        assert!(matches!(
+            err,
+            JuliaColourMapErrors::IterationsExceedMax {
+                iterations: 101,
+                max_iterations: 100
+            }
+        ));
+        assert_eq!(err.to_string(), "iterations 101 exceeds maximum 100");
+    }
+
+    #[test]
+    fn lut_invariant_broken_formats_as_internal_failure() {
+        let err = JuliaColourMapErrors::LutInvariantBroken {
+            iterations: 20,
+            max_iterations: 10,
+        };
+        let message = err.to_string();
+
+        assert!(matches!(
+            err,
+            JuliaColourMapErrors::LutInvariantBroken {
+                iterations: 20,
+                max_iterations: 10
+            }
+        ));
+        assert!(message.contains("internal LUT invariant broken"));
+        assert!(message.contains("20"));
+        assert!(message.contains("10"));
+    }
+}

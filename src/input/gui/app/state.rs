@@ -1,10 +1,10 @@
-use std::sync::Arc;
 use crate::controllers::interactive::data::fractal_config::FractalConfig;
 use crate::core::data::complex_rect::ComplexRect;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::fractals::fractal_kinds::FractalKinds;
 use crate::core::fractals::julia::julia_config::JuliaConfig;
 use crate::core::fractals::mandelbrot::mandelbrot_config::MandelbrotConfig;
+use std::sync::Arc;
 
 pub struct GuiAppState {
     pub selected_fractal: FractalKinds,
@@ -97,6 +97,20 @@ mod tests {
         // Change only colour_map_kind
         ui_state.julia.colour_map_kind = JuliaColourMapKinds::BlueWhiteGradient;
         let changed_request = ui_state.build_render_request(pixel_rect);
+        assert!(ui_state.should_submit(&changed_request));
+    }
+
+    #[test]
+    fn changing_max_iterations_triggers_should_submit() {
+        let mut ui_state = GuiAppState::default();
+        let pixel_rect = create_pixel_rect(100, 100);
+
+        let request1 = ui_state.build_render_request(pixel_rect);
+        ui_state.record_submission(Arc::new(request1), 1);
+
+        ui_state.julia.max_iterations += 1;
+        let changed_request = ui_state.build_render_request(pixel_rect);
+
         assert!(ui_state.should_submit(&changed_request));
     }
 
