@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
+use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 
 use fractal_explorer::core::{
     actions::{
@@ -56,6 +56,7 @@ fn bench_fractal_generation(c: &mut Criterion) {
     let mut group = c.benchmark_group("fractal_generation");
 
     for params in SCENARIOS {
+        let pixel_count = (params.width as u64) * (params.height as u64);
         let pixel_rect = PixelRect::new(
             Point { x: 0, y: 0 },
             Point {
@@ -71,6 +72,7 @@ fn bench_fractal_generation(c: &mut Criterion) {
         let algorithm =
             MandelbrotAlgorithm::new(pixel_rect, complex_rect, params.max_iterations).unwrap();
 
+        group.throughput(Throughput::Elements(pixel_count));
         group.bench_with_input(
             BenchmarkId::new("parallel_rayon", params.label),
             &algorithm,
@@ -87,6 +89,7 @@ fn bench_colour_mapping(c: &mut Criterion) {
     let mut group = c.benchmark_group("colour_mapping");
 
     for params in SCENARIOS {
+        let pixel_count = (params.width as u64) * (params.height as u64);
         let pixel_rect = PixelRect::new(
             Point { x: 0, y: 0 },
             Point {
@@ -108,6 +111,7 @@ fn bench_colour_mapping(c: &mut Criterion) {
         let colour_map =
             mandelbrot_colour_map_factory(MandelbrotColourMapKinds::FireGradient, params.max_iterations);
 
+        group.throughput(Throughput::Elements(pixel_count));
         group.bench_with_input(
             BenchmarkId::new("fire_gradient", params.label),
             &iterations,
@@ -128,6 +132,7 @@ fn bench_full_pipeline(c: &mut Criterion) {
     let mut group = c.benchmark_group("full_pipeline");
 
     for params in SCENARIOS {
+        let pixel_count = (params.width as u64) * (params.height as u64);
         let pixel_rect = PixelRect::new(
             Point { x: 0, y: 0 },
             Point {
@@ -146,6 +151,7 @@ fn bench_full_pipeline(c: &mut Criterion) {
         let colour_map =
             mandelbrot_colour_map_factory(MandelbrotColourMapKinds::FireGradient, params.max_iterations);
 
+        group.throughput(Throughput::Elements(pixel_count));
         group.bench_with_input(
             BenchmarkId::new("generate_and_map", params.label),
             &(),
