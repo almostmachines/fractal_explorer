@@ -29,7 +29,28 @@ struct BenchParams {
     width: i32,
     height: i32,
     max_iterations: u32,
+    complex_top_left: Complex,
+    complex_bottom_right: Complex,
 }
+
+const DEFAULT_COMPLEX_TOP_LEFT: Complex = Complex {
+    real: -2.5,
+    imag: -1.0,
+};
+const DEFAULT_COMPLEX_BOTTOM_RIGHT: Complex = Complex {
+    real: 1.0,
+    imag: 1.0,
+};
+
+const ZOOM_COMPLEX_TOP_LEFT: Complex = Complex {
+    real: -0.6580,
+    imag: -0.4495,
+};
+// ComplexRect requires strictly positive height, so keep an almost-line viewport.
+const ZOOM_COMPLEX_BOTTOM_RIGHT: Complex = Complex {
+    real: -0.6579,
+    imag: -0.4495 + 1e-12,
+};
 
 const SCENARIOS: &[BenchParams] = &[
     BenchParams {
@@ -37,30 +58,34 @@ const SCENARIOS: &[BenchParams] = &[
         width: 800,
         height: 600,
         max_iterations: 256,
+        complex_top_left: DEFAULT_COMPLEX_TOP_LEFT,
+        complex_bottom_right: DEFAULT_COMPLEX_BOTTOM_RIGHT,
     },
     BenchParams {
         label: "1920x1080/256iter",
         width: 1920,
         height: 1080,
         max_iterations: 256,
+        complex_top_left: DEFAULT_COMPLEX_TOP_LEFT,
+        complex_bottom_right: DEFAULT_COMPLEX_BOTTOM_RIGHT,
     },
     BenchParams {
         label: "800x600/1024iter",
         width: 800,
         height: 600,
         max_iterations: 1024,
+        complex_top_left: DEFAULT_COMPLEX_TOP_LEFT,
+        complex_bottom_right: DEFAULT_COMPLEX_BOTTOM_RIGHT,
+    },
+    BenchParams {
+        label: "800x600/1024iter/zoom",
+        width: 800,
+        height: 600,
+        max_iterations: 1024,
+        complex_top_left: ZOOM_COMPLEX_TOP_LEFT,
+        complex_bottom_right: ZOOM_COMPLEX_BOTTOM_RIGHT,
     },
 ];
-
-/// Default Mandelbrot viewport: full set view
-const COMPLEX_TOP_LEFT: Complex = Complex {
-    real: -2.5,
-    imag: -1.0,
-};
-const COMPLEX_BOTTOM_RIGHT: Complex = Complex {
-    real: 1.0,
-    imag: 1.0,
-};
 
 fn bench_fractal_generation(c: &mut Criterion) {
     let mut group = c.benchmark_group("fractal_generation");
@@ -77,7 +102,7 @@ fn bench_fractal_generation(c: &mut Criterion) {
         .unwrap();
 
         let complex_rect =
-            ComplexRect::new(COMPLEX_TOP_LEFT, COMPLEX_BOTTOM_RIGHT).unwrap();
+            ComplexRect::new(params.complex_top_left, params.complex_bottom_right).unwrap();
 
         let algorithm =
             MandelbrotAlgorithm::new(pixel_rect, complex_rect, params.max_iterations).unwrap();
@@ -110,7 +135,7 @@ fn bench_colour_mapping(c: &mut Criterion) {
         .unwrap();
 
         let complex_rect =
-            ComplexRect::new(COMPLEX_TOP_LEFT, COMPLEX_BOTTOM_RIGHT).unwrap();
+            ComplexRect::new(params.complex_top_left, params.complex_bottom_right).unwrap();
 
         let algorithm =
             MandelbrotAlgorithm::new(pixel_rect, complex_rect, params.max_iterations).unwrap();
@@ -153,7 +178,7 @@ fn bench_full_pipeline(c: &mut Criterion) {
         .unwrap();
 
         let complex_rect =
-            ComplexRect::new(COMPLEX_TOP_LEFT, COMPLEX_BOTTOM_RIGHT).unwrap();
+            ComplexRect::new(params.complex_top_left, params.complex_bottom_right).unwrap();
 
         let algorithm =
             MandelbrotAlgorithm::new(pixel_rect, complex_rect, params.max_iterations).unwrap();
@@ -193,7 +218,7 @@ fn bench_full_pipeline_cancelable_atomic(c: &mut Criterion) {
         .unwrap();
 
         let complex_rect =
-            ComplexRect::new(COMPLEX_TOP_LEFT, COMPLEX_BOTTOM_RIGHT).unwrap();
+            ComplexRect::new(params.complex_top_left, params.complex_bottom_right).unwrap();
 
         let algorithm =
             MandelbrotAlgorithm::new(pixel_rect, complex_rect, params.max_iterations).unwrap();
