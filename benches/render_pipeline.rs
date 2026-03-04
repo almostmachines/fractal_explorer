@@ -195,67 +195,6 @@ fn bench_full_pipeline(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_full_pipeline_cancelable_atomic(c: &mut Criterion) {
-    let mut group = c.benchmark_group("full_pipeline_cancelable");
-
-    for params in SCENARIOS {
-        let pixel_count = (params.width as u64) * (params.height as u64);
-        let pixel_rect = PixelRect::new(
-            Point { x: 0, y: 0 },
-            Point {
-                x: params.width - 1,
-                y: params.height - 1,
-            },
-        )
-        .unwrap();
-
-        let complex_rect =
-            ComplexRect::new(params.complex_top_left, params.complex_bottom_right).unwrap();
-
-        let algorithm =
-            MandelbrotAlgorithm::new(pixel_rect, complex_rect, params.max_iterations).unwrap();
-
-        let colour_map =
-            mandelbrot_colour_map_factory(MandelbrotColourMapKinds::FireGradient, params.max_iterations);
-
-        let cancel_flag = Arc::new(AtomicBool::new(false));
-        let cancel_for_token = Arc::clone(&cancel_flag);
-        let cancel = move || cancel_for_token.load(Ordering::Relaxed);
-
-        group.throughput(Throughput::Elements(pixel_count));
-        group.bench_with_input(
-            BenchmarkId::new("generate_and_map_atomic_cancel", params.label),
-            &(),
-            |b, _| {
-                b.iter_with_large_drop(|| {
-                    cancel_flag.store(false, Ordering::Relaxed);
-
-                    let fractal = generate_fractal_parallel_rayon_cancelable(
-                        pixel_rect,
-                        &algorithm,
-                        &cancel,
-                    )
-                    .unwrap();
-
-                    if cancel() {
-                        unreachable!("benchmark cancel token is forced to false");
-                    }
-
-                    generate_pixel_buffer_cancelable(
-                        fractal,
-                        colour_map.as_ref(),
-                        pixel_rect,
-                        &cancel,
-                    )
-                    .unwrap()
-                });
-            },
-        );
-    }
-
-    group.finish();
-}
-
 criterion_group!(
     name = benches;
     config = Criterion::default().measurement_time(Duration::from_secs(5));
