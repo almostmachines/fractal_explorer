@@ -1,6 +1,6 @@
 mod presenters;
 mod controllers;
-mod core;
+pub mod core;
 #[cfg(feature = "gui")]
 mod input;
 
