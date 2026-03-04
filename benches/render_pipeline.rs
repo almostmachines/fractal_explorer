@@ -54,14 +54,6 @@ const ZOOM_COMPLEX_BOTTOM_RIGHT: Complex = Complex {
 
 const SCENARIOS: &[BenchParams] = &[
     BenchParams {
-        label: "800x600/256iter",
-        width: 800,
-        height: 600,
-        max_iterations: 256,
-        complex_top_left: DEFAULT_COMPLEX_TOP_LEFT,
-        complex_bottom_right: DEFAULT_COMPLEX_BOTTOM_RIGHT,
-    },
-    BenchParams {
         label: "1920x1080/256iter",
         width: 1920,
         height: 1080,
