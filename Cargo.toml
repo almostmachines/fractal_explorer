@@ -38,7 +38,3 @@ criterion = { version = "0.5", features = ["html_reports"] }
 [[bench]]
 name = "render_pipeline"
 harness = false
-
-[[bench]]
-name = "presenter_copy"
-harness = false
