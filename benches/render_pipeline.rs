@@ -241,7 +241,7 @@ fn bench_full_pipeline_cancelable_atomic(c: &mut Criterion) {
 
 criterion_group!(
     name = benches;
-    config = Criterion::default().measurement_time(Duration::from_secs(15));
+    config = Criterion::default().measurement_time(Duration::from_secs(20));
     targets = bench_fractal_generation,
     bench_colour_mapping,
     bench_full_pipeline,
