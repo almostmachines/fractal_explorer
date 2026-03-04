@@ -1,8 +1,4 @@
 use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
     time::Duration,
 };
 
@@ -11,10 +7,10 @@ use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, 
 use fractal_explorer::core::{
     actions::{
         generate_fractal::generate_fractal_parallel_rayon::{
-            generate_fractal_parallel_rayon, generate_fractal_parallel_rayon_cancelable,
+            generate_fractal_parallel_rayon,
         },
         generate_pixel_buffer::generate_pixel_buffer::{
-            generate_pixel_buffer, generate_pixel_buffer_cancelable,
+            generate_pixel_buffer,
         },
     },
     data::{complex::Complex, complex_rect::ComplexRect, pixel_rect::PixelRect, point::Point},
@@ -201,6 +197,5 @@ criterion_group!(
     targets = bench_fractal_generation,
     bench_colour_mapping,
     bench_full_pipeline,
-    bench_full_pipeline_cancelable_atomic,
 );
 criterion_main!(benches);
