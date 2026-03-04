@@ -75,7 +75,7 @@ fn bench_fractal_generation(c: &mut Criterion) {
             BenchmarkId::new("parallel_rayon", params.label),
             &algorithm,
             |b, alg| {
-                b.iter(|| generate_fractal_parallel_rayon(pixel_rect, alg).unwrap());
+                b.iter_with_large_drop(|| generate_fractal_parallel_rayon(pixel_rect, alg).unwrap());
             },
         );
     }
@@ -146,7 +146,7 @@ fn bench_full_pipeline(c: &mut Criterion) {
             BenchmarkId::new("generate_and_map", params.label),
             &(),
             |b, _| {
-                b.iter(|| {
+                b.iter_with_large_drop(|| {
                     let iterations =
                         generate_fractal_parallel_rayon(pixel_rect, &algorithm).unwrap();
                     generate_pixel_buffer(iterations, colour_map.as_ref(), pixel_rect).unwrap()
