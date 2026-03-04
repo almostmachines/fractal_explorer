@@ -27,30 +27,33 @@ impl FractalAlgorithm for MandelbrotAlgorithm {
             return Ok(self.max_iterations);
         }
 
-        let mut z = Complex {
-            real: 0.0,
-            imag: 0.0,
-        };
-        let mut z_ref = z;
+        let mut zr = 0.0f64;
+        let mut zi = 0.0f64;
+        let mut zr_ref = zr;
+        let mut zi_ref = zi;
         let mut power = 1u32;
         let mut lambda = 0u32;
 
         for iteration in 1..=self.max_iterations {
-            z = z * z + c;
+            let zr_next = zr * zr - zi * zi + c.real;
+            let zi_next = 2.0 * zr * zi + c.imag;
+            zr = zr_next;
+            zi = zi_next;
 
-            if z.magnitude_squared() > 4.0 {
+            if zr * zr + zi * zi > 4.0 {
                 return Ok(iteration);
             }
 
-            let dr = z.real - z_ref.real;
-            let di = z.imag - z_ref.imag;
+            let dr = zr - zr_ref;
+            let di = zi - zi_ref;
             if dr * dr + di * di < PERIODICITY_EPSILON {
                 return Ok(self.max_iterations);
             }
 
             lambda += 1;
             if lambda == power {
-                z_ref = z;
+                zr_ref = zr;
+                zi_ref = zi;
                 power *= 2;
                 lambda = 0;
             }
