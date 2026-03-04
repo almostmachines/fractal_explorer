@@ -3,7 +3,6 @@ use std::thread;
 
 use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
 use crate::core::data::pixel_rect::PixelRect;
-use crate::core::data::point::Point;
 use crate::core::util::calculate_threads_for_pixel_rect_banding::calculate_threads_for_pixel_rect_banding;
 
 #[allow(dead_code)]
@@ -38,16 +37,12 @@ where
 
             thread::spawn(move || {
                 let mut chunk_results = Vec::with_capacity(
-                    (end_row - start_row) as usize * (right_x - left_x) as usize,
+                    (end_row - start_row) as usize * (right_x - left_x + 1) as usize,
                 );
 
                 for row in start_row..end_row {
                     let y = top_y + row as i32;
-                    for x in left_x..=right_x {
-                        let pixel = Point { x, y };
-                        let result = alg.compute(pixel)?;
-                        chunk_results.push(result);
-                    }
+                    alg.compute_row_segment_into(y, left_x, right_x, &mut chunk_results)?;
                 }
 
                 Ok(chunk_results)
@@ -72,6 +67,7 @@ where
 mod tests {
     use super::*;
     use crate::core::actions::generate_fractal::generate_fractal_serial::generate_fractal_serial;
+    use crate::core::data::point::Point;
     use std::error::Error;
 
     #[derive(Debug, PartialEq)]

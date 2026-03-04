@@ -1,5 +1,4 @@
 use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
-use crate::core::data::complex::Complex;
 use crate::core::data::complex_rect::ComplexRect;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
@@ -8,6 +7,8 @@ use crate::core::util::pixel_to_complex_coords::{
     PixelToComplexCoordsError, pixel_to_complex_coords,
 };
 const PERIODICITY_EPSILON: f64 = 1e-12;
+const JULIA_C_REAL: f64 = -0.7;
+const JULIA_C_IMAG: f64 = 0.27;
 
 #[derive(Debug, PartialEq)]
 pub struct JuliaAlgorithm {
@@ -21,33 +22,77 @@ impl FractalAlgorithm for JuliaAlgorithm {
     type Failure = PixelToComplexCoordsError;
 
     fn compute(&self, pixel: Point) -> Result<Self::Success, Self::Failure> {
-        let c = Complex {
-            real: -0.7,
-            imag: 0.27,
-        };
-
         let z = pixel_to_complex_coords(pixel, self.pixel_rect, self.complex_rect)?;
-        let mut zr = z.real;
-        let mut zi = z.imag;
+        Ok(self.iterate_point(z.real, z.imag))
+    }
+
+    fn compute_row_segment_into(
+        &self,
+        y: i32,
+        x_start: i32,
+        x_end: i32,
+        output: &mut Vec<Self::Success>,
+    ) -> Result<(), Self::Failure> {
+        if x_start > x_end {
+            return Ok(());
+        }
+
+        let top_left = self.pixel_rect.top_left();
+        let bottom_right = self.pixel_rect.bottom_right();
+        let in_bounds = y >= top_left.y
+            && y <= bottom_right.y
+            && x_start >= top_left.x
+            && x_end <= bottom_right.x;
+
+        if !in_bounds {
+            for x in x_start..=x_end {
+                output.push(self.compute(Point { x, y })?);
+            }
+            return Ok(());
+        }
+
+        let real_step = self.complex_rect.width() / (self.pixel_rect.width() - 1) as f64;
+        let imag_step = self.complex_rect.height() / (self.pixel_rect.height() - 1) as f64;
+        let complex_top_left = self.complex_rect.top_left();
+
+        let mut zr = complex_top_left.real + (x_start - top_left.x) as f64 * real_step;
+        let zi = complex_top_left.imag + (y - top_left.y) as f64 * imag_step;
+
+        for _x in x_start..=x_end {
+            output.push(self.iterate_point(zr, zi));
+            zr += real_step;
+        }
+
+        Ok(())
+    }
+
+    fn pixel_rect(&self) -> PixelRect {
+        self.pixel_rect
+    }
+}
+
+impl JuliaAlgorithm {
+    #[inline]
+    fn iterate_point(&self, mut zr: f64, mut zi: f64) -> u32 {
         let mut zr_ref = zr;
         let mut zi_ref = zi;
         let mut power = 1u32;
         let mut lambda = 0u32;
 
         for iteration in 1..=self.max_iterations {
-            let zr_next = zr * zr - zi * zi + c.real;
-            let zi_next = 2.0 * zr * zi + c.imag;
+            let zr_next = zr * zr - zi * zi + JULIA_C_REAL;
+            let zi_next = 2.0 * zr * zi + JULIA_C_IMAG;
             zr = zr_next;
             zi = zi_next;
 
             if zr * zr + zi * zi > 4.0 {
-                return Ok(iteration);
+                return iteration;
             }
 
             let dr = zr - zr_ref;
             let di = zi - zi_ref;
             if dr * dr + di * di < PERIODICITY_EPSILON {
-                return Ok(self.max_iterations);
+                return self.max_iterations;
             }
 
             lambda += 1;
@@ -59,15 +104,9 @@ impl FractalAlgorithm for JuliaAlgorithm {
             }
         }
 
-        Ok(self.max_iterations)
+        self.max_iterations
     }
 
-    fn pixel_rect(&self) -> PixelRect {
-        self.pixel_rect
-    }
-}
-
-impl JuliaAlgorithm {
     pub fn new(
         pixel_rect: PixelRect,
         complex_rect: ComplexRect,

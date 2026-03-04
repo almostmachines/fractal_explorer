@@ -5,7 +5,6 @@ use crate::core::actions::cancellation::{
 };
 use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
 use crate::core::data::pixel_rect::PixelRect;
-use crate::core::data::point::Point;
 
 #[derive(Debug)]
 pub enum GenerateFractalError<E> {
@@ -86,16 +85,22 @@ where
         .into_par_iter()
         .map(|y| {
             let mut row = Vec::with_capacity(row_width);
+            let mut chunk_start = x_start;
 
-            for (i, x) in (x_start..=x_end).enumerate() {
-                if i % CANCEL_CHECK_INTERVAL_PIXELS == 0 && cancel.is_cancelled() {
+            while chunk_start <= x_end {
+                if cancel.is_cancelled() {
                     return Err(GenerateFractalError::Cancelled(Cancelled));
                 }
 
-                let result = algorithm
-                    .compute(Point { x, y })
+                let chunk_end = chunk_start
+                    .saturating_add(CANCEL_CHECK_INTERVAL_PIXELS as i32 - 1)
+                    .min(x_end);
+
+                algorithm
+                    .compute_row_segment_into(y, chunk_start, chunk_end, &mut row)
                     .map_err(GenerateFractalError::Algorithm)?;
-                row.push(result);
+
+                chunk_start = chunk_end + 1;
             }
 
             Ok(row)
@@ -109,6 +114,7 @@ where
 mod tests {
     use super::*;
     use crate::core::actions::generate_fractal::generate_fractal_serial::generate_fractal_serial;
+    use crate::core::data::point::Point;
     use std::error::Error;
     use std::sync::atomic::{AtomicBool, Ordering};
 

@@ -1,5 +1,4 @@
 use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
-use crate::core::data::complex::Complex;
 use crate::core::data::complex_rect::ComplexRect;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::data::point::Point;
@@ -22,9 +21,59 @@ impl FractalAlgorithm for MandelbrotAlgorithm {
 
     fn compute(&self, pixel: Point) -> Result<Self::Success, Self::Failure> {
         let c = pixel_to_complex_coords(pixel, self.pixel_rect, self.complex_rect)?;
+        Ok(self.iterate_point(c.real, c.imag))
+    }
 
-        if Self::in_main_cardioid(c) || Self::in_period2_bulb(c) {
-            return Ok(self.max_iterations);
+    fn compute_row_segment_into(
+        &self,
+        y: i32,
+        x_start: i32,
+        x_end: i32,
+        output: &mut Vec<Self::Success>,
+    ) -> Result<(), Self::Failure> {
+        if x_start > x_end {
+            return Ok(());
+        }
+
+        let top_left = self.pixel_rect.top_left();
+        let bottom_right = self.pixel_rect.bottom_right();
+        let in_bounds = y >= top_left.y
+            && y <= bottom_right.y
+            && x_start >= top_left.x
+            && x_end <= bottom_right.x;
+
+        if !in_bounds {
+            for x in x_start..=x_end {
+                output.push(self.compute(Point { x, y })?);
+            }
+            return Ok(());
+        }
+
+        let real_step = self.complex_rect.width() / (self.pixel_rect.width() - 1) as f64;
+        let imag_step = self.complex_rect.height() / (self.pixel_rect.height() - 1) as f64;
+        let complex_top_left = self.complex_rect.top_left();
+
+        let mut c_real = complex_top_left.real + (x_start - top_left.x) as f64 * real_step;
+        let c_imag = complex_top_left.imag + (y - top_left.y) as f64 * imag_step;
+
+        for _x in x_start..=x_end {
+            output.push(self.iterate_point(c_real, c_imag));
+            c_real += real_step;
+        }
+
+        Ok(())
+    }
+
+    fn pixel_rect(&self) -> PixelRect {
+        self.pixel_rect
+    }
+}
+
+impl MandelbrotAlgorithm {
+    #[inline]
+    fn iterate_point(&self, c_real: f64, c_imag: f64) -> u32 {
+        if Self::in_main_cardioid(c_real, c_imag) || Self::in_period2_bulb(c_real, c_imag) {
+            return self.max_iterations;
         }
 
         let mut zr = 0.0f64;
@@ -35,19 +84,19 @@ impl FractalAlgorithm for MandelbrotAlgorithm {
         let mut lambda = 0u32;
 
         for iteration in 1..=self.max_iterations {
-            let zr_next = zr * zr - zi * zi + c.real;
-            let zi_next = 2.0 * zr * zi + c.imag;
+            let zr_next = zr * zr - zi * zi + c_real;
+            let zi_next = 2.0 * zr * zi + c_imag;
             zr = zr_next;
             zi = zi_next;
 
             if zr * zr + zi * zi > 4.0 {
-                return Ok(iteration);
+                return iteration;
             }
 
             let dr = zr - zr_ref;
             let di = zi - zi_ref;
             if dr * dr + di * di < PERIODICITY_EPSILON {
-                return Ok(self.max_iterations);
+                return self.max_iterations;
             }
 
             lambda += 1;
@@ -59,24 +108,18 @@ impl FractalAlgorithm for MandelbrotAlgorithm {
             }
         }
 
-        Ok(self.max_iterations)
+        self.max_iterations
     }
 
-    fn pixel_rect(&self) -> PixelRect {
-        self.pixel_rect
-    }
-}
-
-impl MandelbrotAlgorithm {
     /// Returns true if c lies inside the main cardioid of the Mandelbrot set.
-    fn in_main_cardioid(c: Complex) -> bool {
-        let q = (c.real - 0.25) * (c.real - 0.25) + c.imag * c.imag;
-        q * (q + (c.real - 0.25)) <= 0.25 * c.imag * c.imag
+    fn in_main_cardioid(c_real: f64, c_imag: f64) -> bool {
+        let q = (c_real - 0.25) * (c_real - 0.25) + c_imag * c_imag;
+        q * (q + (c_real - 0.25)) <= 0.25 * c_imag * c_imag
     }
 
     /// Returns true if c lies inside the period-2 bulb (circle centred at -1+0i, radius 1/4).
-    fn in_period2_bulb(c: Complex) -> bool {
-        (c.real + 1.0) * (c.real + 1.0) + c.imag * c.imag <= 0.0625
+    fn in_period2_bulb(c_real: f64, c_imag: f64) -> bool {
+        (c_real + 1.0) * (c_real + 1.0) + c_imag * c_imag <= 0.0625
     }
 
     pub fn new(

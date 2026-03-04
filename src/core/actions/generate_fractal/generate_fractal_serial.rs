@@ -1,21 +1,20 @@
 use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
 use crate::core::data::pixel_rect::PixelRect;
-use crate::core::data::point::Point;
 
 #[allow(dead_code)]
 pub fn generate_fractal_serial<Alg: FractalAlgorithm>(
     pixel_rect: PixelRect,
     algorithm: &Alg,
 ) -> Result<Vec<Alg::Success>, Alg::Failure> {
-    (pixel_rect.top_left().y..=pixel_rect.bottom_right().y)
-        .flat_map(|y| {
-            (pixel_rect.top_left().x..=pixel_rect.bottom_right().x).map(move |x| Point { x, y })
-        })
-        .map(|pixel| {
-            let result = algorithm.compute(pixel)?;
-            Ok(result)
-        })
-        .collect()
+    let x_start = pixel_rect.top_left().x;
+    let x_end = pixel_rect.bottom_right().x;
+    let mut results = Vec::with_capacity(pixel_rect.size() as usize);
+
+    for y in pixel_rect.top_left().y..=pixel_rect.bottom_right().y {
+        algorithm.compute_row_segment_into(y, x_start, x_end, &mut results)?;
+    }
+
+    Ok(results)
 }
 
 #[cfg(test)]
