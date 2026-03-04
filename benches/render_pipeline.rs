@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
+use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
 
 use fractal_explorer::core::{
     actions::{
@@ -112,7 +112,11 @@ fn bench_colour_mapping(c: &mut Criterion) {
             BenchmarkId::new("fire_gradient", params.label),
             &iterations,
             |b, iters: &Vec<u32>| {
-                b.iter(|| generate_pixel_buffer(iters.clone(), colour_map.as_ref(), pixel_rect).unwrap());
+                b.iter_batched(
+                    || iters.clone(),
+                    |input| generate_pixel_buffer(input, colour_map.as_ref(), pixel_rect).unwrap(),
+                    BatchSize::SmallInput,
+                );
             },
         );
     }
