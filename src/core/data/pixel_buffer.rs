@@ -94,6 +94,29 @@ impl PixelBuffer {
         Ok(Self { pixel_rect, buffer })
     }
 
+    pub(crate) fn from_data_opaque(
+        pixel_rect: PixelRect,
+        buffer: PixelBufferData,
+    ) -> Result<Self, PixelBufferError> {
+        let buffer_size = pixel_rect_to_buffer_size(pixel_rect);
+
+        if buffer_size != buffer.len() {
+            return Err(PixelBufferError::BoundsMismatch {
+                pixel_rect_size: buffer_size,
+                buffer_size: buffer.len(),
+            });
+        }
+
+        debug_assert!(
+            buffer
+                .chunks_exact(Self::BYTES_PER_PIXEL)
+                .all(|pixel| pixel[Self::BYTES_PER_PIXEL - 1] == Self::ALPHA_OPAQUE),
+            "from_data_opaque expects all alpha bytes to be opaque"
+        );
+
+        Ok(Self { pixel_rect, buffer })
+    }
+
     #[must_use]
     pub fn pixel_rect(&self) -> PixelRect {
         self.pixel_rect

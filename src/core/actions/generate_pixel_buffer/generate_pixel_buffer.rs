@@ -128,7 +128,7 @@ where
         buffer.push(PixelBuffer::ALPHA_OPAQUE);
     }
 
-    PixelBuffer::from_data(pixel_rect, buffer)
+    PixelBuffer::from_data_opaque(pixel_rect, buffer)
         .map_err(GeneratePixelBufferCancelableError::PixelBuffer)
 }
 
