@@ -1,10 +1,9 @@
-use crate::core::actions::generate_pixel_buffer::ports::colour_map::ColourMap;
+use crate::core::actions::generate_pixel_buffer::ports::colour_map::{ColourMap, ColourMapError};
 use crate::core::data::colour::Colour;
 use crate::core::fractals::julia::colour_mapping::errors::JuliaColourMapErrors;
 use crate::core::fractals::julia::colour_mapping::kinds::JuliaColourMapKinds;
 use crate::core::fractals::julia::colour_mapping::map::JuliaColourMap;
 use crate::core::util::iteration_colour_lut::IterationColourLut;
-use std::error::Error;
 
 #[derive(Debug)]
 pub struct JuliaFireColourMap {
@@ -13,7 +12,7 @@ pub struct JuliaFireColourMap {
 }
 
 impl ColourMap<u32> for JuliaFireColourMap {
-    fn map(&self, iterations: u32) -> Result<Colour, Box<dyn Error>> {
+    fn map(&self, iterations: u32) -> Result<Colour, ColourMapError> {
         if iterations > self.max_iterations {
             return Err(Box::new(JuliaColourMapErrors::IterationsExceedMax {
                 iterations,

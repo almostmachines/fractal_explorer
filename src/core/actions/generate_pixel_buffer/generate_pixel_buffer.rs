@@ -1,7 +1,7 @@
 use crate::core::actions::cancellation::{
     CancelToken, Cancelled, NeverCancel, CANCEL_CHECK_INTERVAL_PIXELS,
 };
-use crate::core::actions::generate_pixel_buffer::ports::colour_map::ColourMap;
+use crate::core::actions::generate_pixel_buffer::ports::colour_map::{ColourMap, ColourMapError};
 use crate::core::data::colour::Colour;
 use crate::core::data::pixel_buffer::{PixelBuffer, PixelBufferData, PixelBufferError};
 use crate::core::data::pixel_rect::PixelRect;
@@ -10,14 +10,14 @@ use std::fmt;
 
 #[derive(Debug)]
 pub enum GeneratePixelBufferError {
-    ColourMap(Box<dyn Error>),
+    ColourMap(ColourMapError),
     PixelBuffer(PixelBufferError),
 }
 
 #[derive(Debug)]
 pub enum GeneratePixelBufferCancelableError {
     Cancelled(Cancelled),
-    ColourMap(Box<dyn Error>),
+    ColourMap(ColourMapError),
     PixelBuffer(PixelBufferError),
 }
 
@@ -150,7 +150,7 @@ mod tests {
     struct StubColourMapSuccess {}
 
     impl ColourMap<u8> for StubColourMapSuccess {
-        fn map(&self, value: u8) -> Result<Colour, Box<dyn Error>> {
+        fn map(&self, value: u8) -> Result<Colour, ColourMapError> {
             Ok(Colour {
                 r: value,
                 g: value,
@@ -167,7 +167,7 @@ mod tests {
     struct StubColourMapFailure {}
 
     impl ColourMap<u8> for StubColourMapFailure {
-        fn map(&self, _: u8) -> Result<Colour, Box<dyn Error>> {
+        fn map(&self, _: u8) -> Result<Colour, ColourMapError> {
             Err("StubColourMapError".into())
         }
 

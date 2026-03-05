@@ -1,3 +1,4 @@
 pub mod cancellation;
 pub mod generate_fractal;
 pub mod generate_pixel_buffer;
+pub mod render_pixel_buffer;

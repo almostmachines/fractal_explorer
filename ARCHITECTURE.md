@@ -48,17 +48,16 @@ The core is where the “what” lives: algorithms, data models, and the use-cas
 
 ### Use-cases (actions)
 
-The main rendering pipeline is:
+The default rendering pipeline is a **single-pass** action that combines fractal computation and colour mapping in one parallel step, writing RGBA bytes directly into the final `PixelBuffer`:
 
-1. **Fractal iteration**: compute an iteration count per pixel (`Vec<u32>` for Mandelbrot)
-2. **Colour mapping**: map iteration counts to RGB bytes (`PixelBuffer`)
+- `src/core/actions/render_pixel_buffer.rs` — parallelizes over rows via rayon, computing iterations and mapping colours in the same pass. Both cancelable and non-cancelable entry points are provided.
 
-Implementation lives in:
+Lower-level building blocks are retained for benchmarking and experimentation:
 
-- `src/core/actions/generate_fractal/` (serial + parallel implementations)
-- `src/core/actions/generate_pixel_buffer/`
+- `src/core/actions/generate_fractal/` — produces `Vec<u32>` iteration counts (serial + parallel)
+- `src/core/actions/generate_pixel_buffer/` — maps iteration counts to `PixelBuffer` (sequential)
 
-Both have **cancel-aware** variants using `src/core/actions/cancellation.rs`. Cancellation is treated as expected control flow (do not surface as UI “errors”).
+Cancellation is handled via `src/core/actions/cancellation.rs` and treated as expected control flow (not surfaced as UI “errors”).
 
 ### Core ports (traits)
 
@@ -76,9 +75,8 @@ Controllers orchestrate the core to produce outputs.
 `src/main.rs` wires a controller + presenter:
 
 1. `CliTestController::generate()` builds `PixelRect`, `ComplexRect`, `MandelbrotAlgorithm`
-2. Runs `generate_fractal_parallel_rayon(...)`
-3. Runs `generate_pixel_buffer(...)` with a chosen colour map
-4. `CliTestController::write(...)` calls a `FilePresenterPort` adapter to write the file
+2. Calls `render_pixel_buffer_parallel_rayon(...)` (single-pass compute + colour map)
+3. `CliTestController::write(...)` calls a `FilePresenterPort` adapter to write the file
 
 The file-output port is `FilePresenterPort` (`src/controllers/ports/file_presenter.rs`), with a PPM adapter at `src/presenters/file/ppm.rs`.
 
@@ -102,7 +100,7 @@ The controller-to-presenter port is `InteractiveControllerPresenterPort` (`src/c
 
 There are two layers of concurrency:
 
-- **In-core parallelism**: `generate_fractal_parallel_rayon` uses rayon to parallelize rows.
+- **In-core parallelism**: `render_pixel_buffer_parallel_rayon` uses rayon to parallelize rows (compute + colour map in one pass).
 - **GUI worker thread**: `InteractiveController` runs a single worker thread that always renders the *latest* submitted request.
 
 The interactive controller uses:

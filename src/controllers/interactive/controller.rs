@@ -4,11 +4,8 @@ use crate::controllers::interactive::errors::render::RenderError;
 use crate::controllers::interactive::events::render::RenderEvent;
 use crate::controllers::interactive::ports::presenter::InteractiveControllerPresenterPort;
 use crate::core::actions::cancellation::CancelToken;
-use crate::core::actions::generate_fractal::generate_fractal_parallel_rayon::{
-    GenerateFractalError, generate_fractal_parallel_rayon_cancelable,
-};
-use crate::core::actions::generate_pixel_buffer::generate_pixel_buffer::{
-    GeneratePixelBufferCancelableError, generate_pixel_buffer_cancelable,
+use crate::core::actions::render_pixel_buffer::{
+    RenderPixelBufferCancelableError, render_pixel_buffer_parallel_rayon_cancelable,
 };
 use crate::core::data::pixel_buffer::PixelBuffer;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -159,30 +156,19 @@ impl InteractiveController {
         let colour_map = request.colour_map();
         let pixel_rect = algorithm.pixel_rect();
 
-        let fractal = generate_fractal_parallel_rayon_cancelable(pixel_rect, algorithm, cancel)
+        render_pixel_buffer_parallel_rayon_cancelable(pixel_rect, algorithm, colour_map, cancel)
             .map_err(|e| match e {
-                GenerateFractalError::Cancelled(_) => RenderOutcome::Cancelled,
-                GenerateFractalError::Algorithm(err) => RenderOutcome::Error(err.to_string()),
-            })?;
-
-        if cancel.is_cancelled() {
-            return Err(RenderOutcome::Cancelled);
-        }
-
-        let pixel_buffer = generate_pixel_buffer_cancelable(
-            fractal, colour_map, pixel_rect, cancel,
-        )
-        .map_err(|e| match e {
-            GeneratePixelBufferCancelableError::Cancelled(_) => RenderOutcome::Cancelled,
-            GeneratePixelBufferCancelableError::ColourMap(err) => {
-                RenderOutcome::Error(err.to_string())
-            }
-            GeneratePixelBufferCancelableError::PixelBuffer(err) => {
-                RenderOutcome::Error(err.to_string())
-            }
-        })?;
-
-        Ok(pixel_buffer)
+                RenderPixelBufferCancelableError::Cancelled(_) => RenderOutcome::Cancelled,
+                RenderPixelBufferCancelableError::Algorithm(err) => {
+                    RenderOutcome::Error(err.to_string())
+                }
+                RenderPixelBufferCancelableError::ColourMap(err) => {
+                    RenderOutcome::Error(err.to_string())
+                }
+                RenderPixelBufferCancelableError::PixelBuffer(err) => {
+                    RenderOutcome::Error(err.to_string())
+                }
+            })
     }
 }
 

@@ -118,7 +118,7 @@ src/
 ├── core/           # Pure domain logic (no external deps)
 │   ├── data/       # Complex, PixelBuffer, Colour, rects
 │   ├── fractals/   # Mandelbrot algorithm + colour maps
-│   └── actions/    # Use cases: generate_fractal, generate_pixel_buffer
+│   └── actions/    # Use cases: render_pixel_buffer (single-pass), generate_fractal, generate_pixel_buffer
 ├── controllers/    # Application orchestration
 │   ├── cli/                 # CLI (synchronous)
 │   └── interactive/         # GUI (async with worker thread)
@@ -137,7 +137,7 @@ src/
 ### Rendering Pipeline
 
 ```
-PixelRect + Algorithm → Vec<u32> iterations → PixelBuffer RGB → Output
+PixelRect + Algorithm + ColourMap → PixelBuffer RGBA → Output  (single-pass, parallel)
 ```
 
 ### Adding a New Colour Map

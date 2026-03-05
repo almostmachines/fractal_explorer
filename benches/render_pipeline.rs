@@ -12,6 +12,7 @@ use fractal_explorer::core::{
         generate_pixel_buffer::generate_pixel_buffer::{
             generate_pixel_buffer,
         },
+        render_pixel_buffer::render_pixel_buffer_parallel_rayon,
     },
     data::{complex::Complex, complex_rect::ComplexRect, pixel_rect::PixelRect, point::Point},
     fractals::mandelbrot::{
@@ -183,6 +184,16 @@ fn bench_full_pipeline(c: &mut Criterion) {
                     let iterations =
                         generate_fractal_parallel_rayon(pixel_rect, &algorithm).unwrap();
                     generate_pixel_buffer(iterations, colour_map.as_ref(), pixel_rect).unwrap()
+                });
+            },
+        );
+        group.bench_with_input(
+            BenchmarkId::new("single_pass", params.label),
+            &(),
+            |b, _| {
+                b.iter_with_large_drop(|| {
+                    render_pixel_buffer_parallel_rayon(pixel_rect, &algorithm, colour_map.as_ref())
+                        .unwrap()
                 });
             },
         );

@@ -1,14 +1,13 @@
-use crate::core::actions::generate_pixel_buffer::ports::colour_map::ColourMap;
+use crate::core::actions::generate_pixel_buffer::ports::colour_map::{ColourMap, ColourMapError};
 use crate::core::data::colour::Colour;
 use crate::core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds;
-use std::error::Error;
 
 pub trait MandelbrotColourMap: ColourMap<u32> + Send + Sync {
     fn kind(&self) -> MandelbrotColourMapKinds;
 }
 
 impl ColourMap<u32> for Box<dyn MandelbrotColourMap> {
-    fn map(&self, value: u32) -> Result<Colour, Box<dyn Error>> {
+    fn map(&self, value: u32) -> Result<Colour, ColourMapError> {
         (**self).map(value)
     }
 
