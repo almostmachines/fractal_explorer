@@ -78,6 +78,8 @@ impl MandelbrotAlgorithm {
 
         let mut zr = 0.0f64;
         let mut zi = 0.0f64;
+        let mut zr2 = 0.0f64;
+        let mut zi2 = 0.0f64;
         let mut zr_ref = zr;
         let mut zi_ref = zi;
         let mut power = 1u32;
@@ -85,12 +87,14 @@ impl MandelbrotAlgorithm {
 
         let mut iteration = 1u32;
         while iteration <= self.max_iterations {
-            let zr_next = zr * zr - zi * zi + c_real;
-            let zi_next = 2.0 * zr * zi + c_imag;
+            let zr_next = zr2 - zi2 + c_real;
+            let zi_next = (zr + zr) * zi + c_imag;
             zr = zr_next;
             zi = zi_next;
+            zr2 = zr * zr;
+            zi2 = zi * zi;
 
-            if zr * zr + zi * zi > 4.0 {
+            if zr2 + zi2 > 4.0 {
                 return iteration;
             }
 

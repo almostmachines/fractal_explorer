@@ -74,6 +74,8 @@ impl FractalAlgorithm for JuliaAlgorithm {
 impl JuliaAlgorithm {
     #[inline]
     fn iterate_point(&self, mut zr: f64, mut zi: f64) -> u32 {
+        let mut zr2 = zr * zr;
+        let mut zi2 = zi * zi;
         let mut zr_ref = zr;
         let mut zi_ref = zi;
         let mut power = 1u32;
@@ -81,12 +83,14 @@ impl JuliaAlgorithm {
 
         let mut iteration = 1u32;
         while iteration <= self.max_iterations {
-            let zr_next = zr * zr - zi * zi + JULIA_C_REAL;
-            let zi_next = 2.0 * zr * zi + JULIA_C_IMAG;
+            let zr_next = zr2 - zi2 + JULIA_C_REAL;
+            let zi_next = (zr + zr) * zi + JULIA_C_IMAG;
             zr = zr_next;
             zi = zi_next;
+            zr2 = zr * zr;
+            zi2 = zi * zi;
 
-            if zr * zr + zi * zi > 4.0 {
+            if zr2 + zi2 > 4.0 {
                 return iteration;
             }
 
