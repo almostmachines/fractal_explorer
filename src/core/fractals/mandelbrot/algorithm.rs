@@ -83,7 +83,8 @@ impl MandelbrotAlgorithm {
         let mut power = 1u32;
         let mut lambda = 0u32;
 
-        for iteration in 1..=self.max_iterations {
+        let mut iteration = 1u32;
+        while iteration <= self.max_iterations {
             let zr_next = zr * zr - zi * zi + c_real;
             let zi_next = 2.0 * zr * zi + c_imag;
             zr = zr_next;
@@ -106,6 +107,8 @@ impl MandelbrotAlgorithm {
                 power *= 2;
                 lambda = 0;
             }
+
+            iteration += 1;
         }
 
         self.max_iterations
