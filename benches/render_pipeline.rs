@@ -177,17 +177,6 @@ fn bench_full_pipeline(c: &mut Criterion) {
 
         group.throughput(Throughput::Elements(pixel_count));
         group.bench_with_input(
-            BenchmarkId::new("generate_and_map", params.label),
-            &(),
-            |b, _| {
-                b.iter_with_large_drop(|| {
-                    let iterations =
-                        generate_fractal_parallel_rayon(pixel_rect, &algorithm).unwrap();
-                    generate_pixel_buffer(iterations, colour_map.as_ref(), pixel_rect).unwrap()
-                });
-            },
-        );
-        group.bench_with_input(
             BenchmarkId::new("single_pass", params.label),
             &(),
             |b, _| {
