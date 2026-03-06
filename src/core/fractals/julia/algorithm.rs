@@ -6,7 +6,6 @@ use crate::core::fractals::julia::errors::julia::JuliaError;
 use crate::core::util::pixel_to_complex_coords::{
     PixelToComplexCoordsError, pixel_to_complex_coords,
 };
-const PERIODICITY_EPSILON: f64 = 1e-12;
 const JULIA_C_REAL: f64 = -0.7;
 const JULIA_C_IMAG: f64 = 0.27;
 
@@ -76,8 +75,6 @@ impl JuliaAlgorithm {
     fn iterate_point(&self, mut zr: f64, mut zi: f64) -> u32 {
         let mut zr2 = zr * zr;
         let mut zi2 = zi * zi;
-        let mut zr_ref = zr;
-        let mut zi_ref = zi;
         let mut power = 1u32;
         let mut lambda = 0u32;
 
@@ -94,16 +91,8 @@ impl JuliaAlgorithm {
                 return iteration;
             }
 
-            let dr = zr - zr_ref;
-            let di = zi - zi_ref;
-            if dr * dr + di * di < PERIODICITY_EPSILON {
-                return self.max_iterations;
-            }
-
             lambda += 1;
             if lambda == power {
-                zr_ref = zr;
-                zi_ref = zi;
                 power *= 2;
                 lambda = 0;
             }

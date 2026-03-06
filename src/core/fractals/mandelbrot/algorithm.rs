@@ -6,7 +6,6 @@ use crate::core::fractals::mandelbrot::errors::mandelbrot::MandelbrotError;
 use crate::core::util::pixel_to_complex_coords::{
     PixelToComplexCoordsError, pixel_to_complex_coords,
 };
-const PERIODICITY_EPSILON: f64 = 1e-12;
 
 #[derive(Debug, PartialEq)]
 pub struct MandelbrotAlgorithm {
@@ -80,8 +79,6 @@ impl MandelbrotAlgorithm {
         let mut zi = 0.0f64;
         let mut zr2 = 0.0f64;
         let mut zi2 = 0.0f64;
-        let mut zr_ref = zr;
-        let mut zi_ref = zi;
         let mut power = 1u32;
         let mut lambda = 0u32;
 
@@ -98,16 +95,8 @@ impl MandelbrotAlgorithm {
                 return iteration;
             }
 
-            let dr = zr - zr_ref;
-            let di = zi - zi_ref;
-            if dr * dr + di * di < PERIODICITY_EPSILON {
-                return self.max_iterations;
-            }
-
             lambda += 1;
             if lambda == power {
-                zr_ref = zr;
-                zi_ref = zi;
                 power *= 2;
                 lambda = 0;
             }
