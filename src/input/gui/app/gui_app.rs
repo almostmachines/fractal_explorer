@@ -254,12 +254,12 @@ impl<T: GuiPresenterPort> GuiApp<T> {
                     let bottom_right = active_region.bottom_right();
 
                     ui.label(format!(
-                        "Real: [{:.4}, {:.4}]",
+                        "Real: [{:.8}, {:.8}]",
                         top_left.real, bottom_right.real
                     ));
 
                     ui.label(format!(
-                        "Imag: [{:.4}, {:.4}]",
+                        "Imag: [{:.8}, {:.8}]",
                         top_left.imag, bottom_right.imag
                     ));
 
@@ -294,7 +294,7 @@ impl<T: GuiPresenterPort> GuiApp<T> {
                         flight_status.heading[0], flight_status.heading[1]
                     ));
                     ui.label(format!(
-                        "Extent: w={:.4}, h={:.4}",
+                        "Extent: w={:.8}, h={:.8}",
                         active_region.width(),
                         active_region.height()
                     ));
