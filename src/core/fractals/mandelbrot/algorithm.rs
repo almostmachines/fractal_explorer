@@ -79,8 +79,6 @@ impl MandelbrotAlgorithm {
         let mut zi = 0.0f64;
         let mut zr2 = 0.0f64;
         let mut zi2 = 0.0f64;
-        let mut power = 1u32;
-        let mut lambda = 0u32;
 
         let mut iteration = 1u32;
         while iteration <= self.max_iterations {
@@ -93,12 +91,6 @@ impl MandelbrotAlgorithm {
 
             if zr2 + zi2 > 4.0 {
                 return iteration;
-            }
-
-            lambda += 1;
-            if lambda == power {
-                power *= 2;
-                lambda = 0;
             }
 
             iteration += 1;

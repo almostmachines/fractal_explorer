@@ -75,8 +75,6 @@ impl JuliaAlgorithm {
     fn iterate_point(&self, mut zr: f64, mut zi: f64) -> u32 {
         let mut zr2 = zr * zr;
         let mut zi2 = zi * zi;
-        let mut power = 1u32;
-        let mut lambda = 0u32;
 
         let mut iteration = 1u32;
         while iteration <= self.max_iterations {
@@ -89,12 +87,6 @@ impl JuliaAlgorithm {
 
             if zr2 + zi2 > 4.0 {
                 return iteration;
-            }
-
-            lambda += 1;
-            if lambda == power {
-                power *= 2;
-                lambda = 0;
             }
 
             iteration += 1;
