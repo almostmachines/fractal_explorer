@@ -4,15 +4,15 @@ set -euo pipefail
 # Generate a flamegraph from a criterion benchmark.
 #
 # Usage:
-#   ./scripts/flamegraph.sh                              # full pipeline, 800x600
+#   ./scripts/flamegraph.sh                              # full pipeline, 1920x1080
 #   ./scripts/flamegraph.sh "fractal_generation/parallel_rayon/1920x1080/256iter"
 #   ./scripts/flamegraph.sh "colour_mapping/fire_gradient/800x600/1024iter" 10
 #
 # Arguments:
-#   $1  benchmark filter (default: full_pipeline/generate_and_map/800x600/256iter)
+#   $1  benchmark filter (default: full_pipeline/generate_and_map/1920x1080/256iter)
 #   $2  profile time in seconds (default: 5)
 
-BENCH_FILTER="${1:-full_pipeline/generate_and_map/800x600/256iter}"
+BENCH_FILTER="${1:-full_pipeline/generate_and_map/1920x1080/256iter}"
 PROFILE_TIME="${2:-5}"
 
 OUTPUT_DIR="target/flamegraphs"
