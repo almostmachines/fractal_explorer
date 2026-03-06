@@ -1,8 +1,6 @@
 use rayon::prelude::*;
 
-use crate::core::actions::cancellation::{
-    CancelToken, Cancelled, NeverCancel, CANCEL_CHECK_INTERVAL_PIXELS,
-};
+use crate::core::actions::cancellation::{CancelToken, Cancelled, NeverCancel};
 use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
 use crate::core::data::pixel_rect::PixelRect;
 
@@ -85,23 +83,13 @@ where
         .into_par_iter()
         .map(|y| {
             let mut row = Vec::with_capacity(row_width);
-            let mut chunk_start = x_start;
-
-            while chunk_start <= x_end {
-                if cancel.is_cancelled() {
-                    return Err(GenerateFractalError::Cancelled(Cancelled));
-                }
-
-                let chunk_end = chunk_start
-                    .saturating_add(CANCEL_CHECK_INTERVAL_PIXELS as i32 - 1)
-                    .min(x_end);
-
-                algorithm
-                    .compute_row_segment_into(y, chunk_start, chunk_end, &mut row)
-                    .map_err(GenerateFractalError::Algorithm)?;
-
-                chunk_start = chunk_end + 1;
+            if cancel.is_cancelled() {
+                return Err(GenerateFractalError::Cancelled(Cancelled));
             }
+
+            algorithm
+                .compute_row_segment_into(y, x_start, x_end, &mut row)
+                .map_err(GenerateFractalError::Algorithm)?;
 
             Ok(row)
         })
@@ -308,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cancellation_polled_multiple_times_on_wide_rows() {
+    fn test_cancellation_polled_once_per_row_even_on_wide_rows() {
         use std::sync::atomic::AtomicUsize;
 
         let algorithm = StubSuccessAlgorithm {};
@@ -324,6 +312,7 @@ mod tests {
         let polls = poll_count.load(Ordering::Relaxed);
 
         assert!(result.is_ok());
-        assert!(polls >= 6, "Expected at least 6 polls for 2 wide rows, got {}", polls);
+        assert!(polls >= 2, "Expected at least 2 polls for 2 rows, got {}", polls);
+        assert!(polls <= 4, "Expected row-level polling only, got {}", polls);
     }
 }

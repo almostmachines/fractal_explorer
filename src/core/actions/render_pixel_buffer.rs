@@ -1,8 +1,6 @@
 use rayon::prelude::*;
 
-use crate::core::actions::cancellation::{
-    CancelToken, Cancelled, NeverCancel, CANCEL_CHECK_INTERVAL_PIXELS,
-};
+use crate::core::actions::cancellation::{CancelToken, Cancelled, NeverCancel};
 use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
 use crate::core::actions::generate_pixel_buffer::ports::colour_map::{ColourMap, ColourMapError};
 use crate::core::data::pixel_buffer::{PixelBuffer, PixelBufferData, PixelBufferError};
@@ -136,36 +134,20 @@ where
                 }
 
                 let y = top_y + row_idx as i32;
-                let mut chunk_start = x_start;
-                let mut iters = Vec::with_capacity(CANCEL_CHECK_INTERVAL_PIXELS);
+                let mut iters = Vec::with_capacity(width);
+                algorithm
+                    .compute_row_segment_into(y, x_start, x_end, &mut iters)
+                    .map_err(RenderPixelBufferCancelableError::Algorithm)?;
 
-                while chunk_start <= x_end {
-                    if cancel.is_cancelled() {
-                        return Err(RenderPixelBufferCancelableError::Cancelled(Cancelled));
-                    }
-
-                    let chunk_end = chunk_start
-                        .saturating_add(CANCEL_CHECK_INTERVAL_PIXELS as i32 - 1)
-                        .min(x_end);
-
-                    iters.clear();
-                    algorithm
-                        .compute_row_segment_into(y, chunk_start, chunk_end, &mut iters)
-                        .map_err(RenderPixelBufferCancelableError::Algorithm)?;
-
-                    for (offset, iter_val) in iters.iter().enumerate() {
-                        let c = colour_map
-                            .map(*iter_val)
-                            .map_err(RenderPixelBufferCancelableError::ColourMap)?;
-                        let base = ((chunk_start - x_start) as usize + offset)
-                            * PixelBuffer::BYTES_PER_PIXEL;
-                        row[base] = c.r;
-                        row[base + 1] = c.g;
-                        row[base + 2] = c.b;
-                        row[base + 3] = PixelBuffer::ALPHA_OPAQUE;
-                    }
-
-                    chunk_start = chunk_end + 1;
+                for (offset, iter_val) in iters.iter().enumerate() {
+                    let c = colour_map
+                        .map(*iter_val)
+                        .map_err(RenderPixelBufferCancelableError::ColourMap)?;
+                    let base = offset * PixelBuffer::BYTES_PER_PIXEL;
+                    row[base] = c.r;
+                    row[base + 1] = c.g;
+                    row[base + 2] = c.b;
+                    row[base + 3] = PixelBuffer::ALPHA_OPAQUE;
                 }
                 Ok(())
             },
