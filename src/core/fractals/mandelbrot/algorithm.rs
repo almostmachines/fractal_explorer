@@ -6,6 +6,19 @@ use crate::core::fractals::mandelbrot::errors::mandelbrot::MandelbrotError;
 use crate::core::util::pixel_to_complex_coords::{
     PixelToComplexCoordsError, pixel_to_complex_coords,
 };
+#[cfg(target_arch = "x86")]
+use std::arch::x86::{
+    _CMP_GT_OQ, _mm256_add_pd, _mm256_cmp_pd, _mm256_loadu_pd, _mm256_movemask_pd,
+    _mm256_mul_pd, _mm256_set1_pd, _mm256_setzero_pd, _mm256_sub_pd,
+};
+#[cfg(target_arch = "x86_64")]
+use std::arch::x86_64::{
+    _CMP_GT_OQ, _mm256_add_pd, _mm256_cmp_pd, _mm256_loadu_pd, _mm256_movemask_pd,
+    _mm256_mul_pd, _mm256_set1_pd, _mm256_setzero_pd, _mm256_sub_pd,
+};
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+const AVX_LANES: usize = 4;
 
 #[derive(Debug, PartialEq)]
 pub struct MandelbrotAlgorithm {
@@ -52,13 +65,17 @@ impl FractalAlgorithm for MandelbrotAlgorithm {
         let imag_step = self.complex_rect.height() / (self.pixel_rect.height() - 1) as f64;
         let complex_top_left = self.complex_rect.top_left();
 
-        let mut c_real = complex_top_left.real + (x_start - top_left.x) as f64 * real_step;
+        let c_real = complex_top_left.real + (x_start - top_left.x) as f64 * real_step;
         let c_imag = complex_top_left.imag + (y - top_left.y) as f64 * imag_step;
 
-        for _x in x_start..=x_end {
-            output.push(self.iterate_point(c_real, c_imag));
-            c_real += real_step;
+        let point_count = (x_end - x_start + 1) as usize;
+        output.reserve(point_count);
+
+        if self.append_row_segment_avx(c_real, c_imag, real_step, point_count, output) {
+            return Ok(());
         }
+
+        self.append_row_segment_scalar(c_real, c_imag, real_step, point_count, output);
 
         Ok(())
     }
@@ -69,6 +86,129 @@ impl FractalAlgorithm for MandelbrotAlgorithm {
 }
 
 impl MandelbrotAlgorithm {
+    #[inline]
+    fn append_row_segment_scalar(
+        &self,
+        mut c_real: f64,
+        c_imag: f64,
+        real_step: f64,
+        point_count: usize,
+        output: &mut Vec<u32>,
+    ) {
+        for _ in 0..point_count {
+            output.push(self.iterate_point(c_real, c_imag));
+            c_real += real_step;
+        }
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    fn append_row_segment_avx(
+        &self,
+        mut c_real: f64,
+        c_imag: f64,
+        real_step: f64,
+        point_count: usize,
+        output: &mut Vec<u32>,
+    ) -> bool {
+        if !is_x86_feature_detected!("avx") {
+            return false;
+        }
+
+        let simd_points = point_count / AVX_LANES * AVX_LANES;
+        let chunk_step = real_step * AVX_LANES as f64;
+
+        for _ in 0..(simd_points / AVX_LANES) {
+            let lane_reals = [
+                c_real,
+                c_real + real_step,
+                c_real + real_step * 2.0,
+                c_real + real_step * 3.0,
+            ];
+            let lane_iters = unsafe { self.iterate_four_points_avx(lane_reals, c_imag) };
+            output.extend_from_slice(&lane_iters);
+            c_real += chunk_step;
+        }
+
+        self.append_row_segment_scalar(
+            c_real,
+            c_imag,
+            real_step,
+            point_count - simd_points,
+            output,
+        );
+
+        true
+    }
+
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    fn append_row_segment_avx(
+        &self,
+        _c_real: f64,
+        _c_imag: f64,
+        _real_step: f64,
+        _point_count: usize,
+        _output: &mut Vec<u32>,
+    ) -> bool {
+        false
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[target_feature(enable = "avx")]
+    unsafe fn iterate_four_points_avx(&self, lane_reals: [f64; AVX_LANES], c_imag: f64) -> [u32; AVX_LANES] {
+        let mut results = [self.max_iterations; AVX_LANES];
+        let mut active_mask = 0u8;
+
+        for (lane, &c_real) in lane_reals.iter().enumerate() {
+            if !Self::in_main_cardioid(c_real, c_imag) && !Self::in_period2_bulb(c_real, c_imag) {
+                active_mask |= 1 << lane;
+            }
+        }
+
+        if active_mask == 0 {
+            return results;
+        }
+
+        let c_real_vec = unsafe { _mm256_loadu_pd(lane_reals.as_ptr()) };
+        let c_imag_vec = _mm256_set1_pd(c_imag);
+        let escape_radius_sq = _mm256_set1_pd(4.0);
+        let mut zr = _mm256_setzero_pd();
+        let mut zi = _mm256_setzero_pd();
+        let mut zr2 = _mm256_setzero_pd();
+        let mut zi2 = _mm256_setzero_pd();
+
+        for iteration in 1..=self.max_iterations {
+            let zr_next = _mm256_add_pd(_mm256_sub_pd(zr2, zi2), c_real_vec);
+            let zi_next = _mm256_add_pd(_mm256_mul_pd(_mm256_add_pd(zr, zr), zi), c_imag_vec);
+            zr = zr_next;
+            zi = zi_next;
+            zr2 = _mm256_mul_pd(zr, zr);
+            zi2 = _mm256_mul_pd(zi, zi);
+
+            let magnitude_sq = _mm256_add_pd(zr2, zi2);
+            let escaped_mask =
+                _mm256_movemask_pd(_mm256_cmp_pd(magnitude_sq, escape_radius_sq, _CMP_GT_OQ))
+                    as u8;
+            let newly_escaped = escaped_mask & active_mask;
+
+            if newly_escaped == 0 {
+                continue;
+            }
+
+            for lane in 0..AVX_LANES {
+                if (newly_escaped & (1 << lane)) != 0 {
+                    results[lane] = iteration;
+                }
+            }
+
+            active_mask &= !escaped_mask;
+            if active_mask == 0 {
+                break;
+            }
+        }
+
+        results
+    }
+
     #[inline]
     fn iterate_point(&self, c_real: f64, c_imag: f64) -> u32 {
         if Self::in_main_cardioid(c_real, c_imag) || Self::in_period2_bulb(c_real, c_imag) {
@@ -280,5 +420,107 @@ mod tests {
         let iterations = algorithm.compute(Point { x: 0, y: 0 }).unwrap();
 
         assert_eq!(iterations, max_iterations);
+    }
+
+    #[test]
+    fn compute_row_segment_matches_scalar_reference_for_zoom_row() {
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 31, y: 11 }).unwrap();
+        let complex_rect = ComplexRect::new(
+            Complex {
+                real: -0.6580,
+                imag: -0.4495,
+            },
+            Complex {
+                real: -0.6579,
+                imag: -0.4495 + 1e-12,
+            },
+        )
+        .unwrap();
+        let algorithm = MandelbrotAlgorithm::new(pixel_rect, complex_rect, 1024).unwrap();
+
+        let y = 5;
+        let x_start = 3;
+        let x_end = 29;
+        let expected: Vec<u32> = (x_start..=x_end)
+            .map(|x| algorithm.compute(Point { x, y }).unwrap())
+            .collect();
+
+        let mut actual = Vec::new();
+        algorithm
+            .compute_row_segment_into(y, x_start, x_end, &mut actual)
+            .unwrap();
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn compute_row_segment_appends_results_after_existing_prefix() {
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 15, y: 7 }).unwrap();
+        let complex_rect = ComplexRect::new(
+            Complex {
+                real: -2.5,
+                imag: -1.0,
+            },
+            Complex {
+                real: 1.0,
+                imag: 1.0,
+            },
+        )
+        .unwrap();
+        let algorithm = MandelbrotAlgorithm::new(pixel_rect, complex_rect, 64).unwrap();
+
+        let y = 4;
+        let x_start = 2;
+        let x_end = 12;
+        let mut actual = vec![999];
+        algorithm
+            .compute_row_segment_into(y, x_start, x_end, &mut actual)
+            .unwrap();
+
+        let mut expected = vec![999];
+        expected.extend((x_start..=x_end).map(|x| algorithm.compute(Point { x, y }).unwrap()));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[test]
+    fn avx_row_kernel_matches_scalar_reference_when_available() {
+        if !is_x86_feature_detected!("avx") {
+            return;
+        }
+
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 19, y: 9 }).unwrap();
+        let complex_rect = ComplexRect::new(
+            Complex {
+                real: -0.9,
+                imag: -0.3,
+            },
+            Complex {
+                real: -0.6,
+                imag: -0.1,
+            },
+        )
+        .unwrap();
+        let algorithm = MandelbrotAlgorithm::new(pixel_rect, complex_rect, 256).unwrap();
+        let top_left = pixel_rect.top_left();
+        let y = 6;
+        let x_start = 1;
+        let x_end = 13;
+        let point_count = (x_end - x_start + 1) as usize;
+        let real_step = complex_rect.width() / (pixel_rect.width() - 1) as f64;
+        let imag_step = complex_rect.height() / (pixel_rect.height() - 1) as f64;
+        let complex_top_left = complex_rect.top_left();
+        let c_real = complex_top_left.real + (x_start - top_left.x) as f64 * real_step;
+        let c_imag = complex_top_left.imag + (y - top_left.y) as f64 * imag_step;
+
+        let mut actual = Vec::new();
+        assert!(algorithm.append_row_segment_avx(c_real, c_imag, real_step, point_count, &mut actual));
+
+        let expected: Vec<u32> = (x_start..=x_end)
+            .map(|x| algorithm.compute(Point { x, y }).unwrap())
+            .collect();
+
+        assert_eq!(actual, expected);
     }
 }
