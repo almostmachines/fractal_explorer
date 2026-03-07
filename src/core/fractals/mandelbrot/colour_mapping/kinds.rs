@@ -1,8 +1,8 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[derive(Default)]
 pub enum MandelbrotColourMapKinds {
-    BlueWhiteGradient,
     #[default]
+    BlueWhiteGradient,
     FireGradient,
 }
 

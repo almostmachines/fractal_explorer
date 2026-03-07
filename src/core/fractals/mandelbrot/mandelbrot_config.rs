@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-const DEFAULT_MAX_ITERATIONS: u32 = 256;
+const DEFAULT_MAX_ITERATIONS: u32 = 800;
 
 pub(crate) fn default_region() -> ComplexRect {
     ComplexRect::new(
