@@ -10,6 +10,7 @@ use crate::core::fractals::julia::flight as julia_flight;
 use crate::core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds;
 use crate::core::fractals::mandelbrot::flight as mandelbrot_flight;
 use crate::input::gui::app::events::gui::GuiEvent;
+use crate::input::gui::app::frame_overlay::FrameOverlay;
 use crate::input::gui::app::flight_input::FlightInputState;
 use crate::input::gui::app::ports::presenter::GuiPresenterPort;
 use crate::input::gui::app::state::GuiAppState;
@@ -85,10 +86,12 @@ impl<T: GuiPresenterPort> GuiApp<T> {
     }
 
     pub fn render(&mut self, egui_output: egui::FullOutput) -> Result<(), pixels::Error> {
+        let frame_overlay = self.build_frame_overlay();
         self.presenter.render(
             egui_output,
             &self.egui_ctx,
             self.ui_state.latest_submitted_generation,
+            &frame_overlay,
         )
     }
 
@@ -129,6 +132,10 @@ impl<T: GuiPresenterPort> GuiApp<T> {
             FlightWarning::ExtentClamped => "Extent clamped",
             FlightWarning::NonFiniteReset => "Non-finite reset",
         }
+    }
+
+    fn build_frame_overlay(&self) -> FrameOverlay {
+        build_frame_overlay_from_paused(self.flight_sim.status().paused)
     }
 
     fn update_flight_simulation(&mut self, elapsed: Duration, text_editing: bool) {
@@ -350,6 +357,7 @@ impl<T: GuiPresenterPort> GuiApp<T> {
                         if let WindowEvent::KeyboardInput { event, .. } = event {
                             if let PhysicalKey::Code(key_code) = event.physical_key {
                                 self.flight_input.handle_key_event(key_code, event.state);
+                                self.ui_state.redraw_pending = true;
                             }
                         }
 
@@ -451,5 +459,27 @@ impl<T: GuiPresenterPort> GuiApp<T> {
                 }
             })
             .expect("Event loop error");
+    }
+}
+
+fn build_frame_overlay_from_paused(paused: bool) -> FrameOverlay {
+    FrameOverlay { paused }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_frame_overlay_from_paused;
+    use crate::input::gui::app::frame_overlay::FrameOverlay;
+
+    #[test]
+    fn build_frame_overlay_reflects_paused_state() {
+        assert_eq!(
+            build_frame_overlay_from_paused(true),
+            FrameOverlay { paused: true }
+        );
+        assert_eq!(
+            build_frame_overlay_from_paused(false),
+            FrameOverlay { paused: false }
+        );
     }
 }

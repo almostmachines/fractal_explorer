@@ -2,9 +2,11 @@ use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::controllers::interactive::events::render::RenderEvent;
 use crate::controllers::interactive::ports::presenter::InteractiveControllerPresenterPort;
 use crate::core::data::pixel_buffer::PixelBuffer;
+use crate::input::gui::app::frame_overlay::FrameOverlay;
 use crate::input::gui::app::events::gui::GuiEvent;
 use crate::input::gui::app::ports::presenter::GuiPresenterPort;
 use crate::presenters::pixels::adapter::PixelsAdapter;
+use crate::presenters::pixels::paused_overlay;
 use egui::Context as EguiContext;
 use egui_wgpu::Renderer as EguiRenderer;
 use pixels::Pixels;
@@ -22,6 +24,7 @@ pub struct PixelsPresenter {
     width: u32,
     height: u32,
     has_frame: bool,
+    base_frame_rgba: Vec<u8>,
     last_presented_generation: u64,
     last_error_message: Option<String>,
     last_render_duration: Option<Duration>,
@@ -49,6 +52,7 @@ impl GuiPresenterPort for PixelsPresenter {
             width: size.width,
             height: size.height,
             has_frame: false,
+            base_frame_rgba: Vec::new(),
             last_presented_generation: 0,
             last_error_message: None,
             last_render_duration: None,
@@ -64,16 +68,20 @@ impl GuiPresenterPort for PixelsPresenter {
         egui_output: egui::FullOutput,
         egui_ctx: &EguiContext,
         _requested_generation: u64,
+        frame_overlay: &FrameOverlay,
     ) -> Result<(), pixels::Error> {
         if self.width == 0 || self.height == 0 {
             return Ok(());
         }
 
         self.maybe_draw_frame();
-
-        if !self.has_frame {
-            self.draw_placeholder();
-        }
+        self.redraw_base_layer();
+        paused_overlay::draw_frame_overlay(
+            self.pixels.frame_mut(),
+            self.width,
+            self.height,
+            frame_overlay,
+        );
 
         self.pixels.render_with(|encoder, render_target, context| {
             // First, render the pixels framebuffer (the scaling pass)
@@ -149,6 +157,7 @@ impl GuiPresenterPort for PixelsPresenter {
             .expect("Failed to resize buffer");
 
         self.has_frame = false;
+        self.base_frame_rgba.clear();
     }
 }
 
@@ -163,6 +172,38 @@ impl PixelsPresenter {
         }
     }
 
+    fn redraw_base_layer(&mut self) {
+        if self.has_frame {
+            let dest = self.pixels.frame_mut();
+            let expected_rgba_len =
+                (self.width as usize) * (self.height as usize) * PixelBuffer::BYTES_PER_PIXEL;
+
+            assert_eq!(
+                self.base_frame_rgba.len(),
+                expected_rgba_len,
+                "cached base frame length {} does not match expected {} for {}x{}",
+                self.base_frame_rgba.len(),
+                expected_rgba_len,
+                self.width,
+                self.height
+            );
+
+            assert_eq!(
+                dest.len(),
+                expected_rgba_len,
+                "pixels frame length {} does not match expected {} for {}x{}",
+                dest.len(),
+                expected_rgba_len,
+                self.width,
+                self.height
+            );
+
+            dest.copy_from_slice(&self.base_frame_rgba);
+        } else {
+            self.draw_placeholder();
+        }
+    }
+
     pub fn maybe_draw_frame(&mut self) {
         if let Some(event) = self.adapter.render_event() {
             match event {
@@ -173,7 +214,7 @@ impl PixelsPresenter {
                         && pixel_rect.width() == self.width
                         && pixel_rect.height() == self.height
                     {
-                        self.copy_pixel_buffer_into_pixels_frame(&frame);
+                        self.copy_pixel_buffer_into_base_frame(&frame);
                         self.has_frame = true;
                         self.last_presented_generation = frame.generation;
                         self.last_render_duration = Some(frame.render_duration);
@@ -189,13 +230,12 @@ impl PixelsPresenter {
         }
     }
 
-    pub fn copy_pixel_buffer_into_pixels_frame(&mut self, frame: &FrameData) {
+    pub fn copy_pixel_buffer_into_base_frame(&mut self, frame: &FrameData) {
         let pixel_rect = frame.pixel_buffer.pixel_rect();
         let width = pixel_rect.width();
         let height = pixel_rect.height();
         let expected_rgba_len = (width * height) as usize * PixelBuffer::BYTES_PER_PIXEL;
         let src = frame.pixel_buffer.buffer();
-        let dest = self.pixels.frame_mut();
 
         assert_eq!(
             src.len(),
@@ -207,16 +247,7 @@ impl PixelsPresenter {
             height
         );
 
-        assert_eq!(
-            dest.len(),
-            expected_rgba_len,
-            "pixels frame length {} does not match expected {} for {}x{}",
-            dest.len(),
-            expected_rgba_len,
-            width,
-            height
-        );
-
-        dest.copy_from_slice(src);
+        self.base_frame_rgba.clear();
+        self.base_frame_rgba.extend_from_slice(src);
     }
 }
