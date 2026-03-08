@@ -8,8 +8,8 @@ pub struct FlightInputState {
     a_held: bool,
     s_held: bool,
     d_held: bool,
-    j_held: bool,
-    k_held: bool,
+    arrow_down_held: bool,
+    arrow_up_held: bool,
     p_edge_pending: bool,
 }
 
@@ -22,8 +22,8 @@ impl FlightInputState {
             KeyCode::KeyA => self.a_held = pressed,
             KeyCode::KeyS => self.s_held = pressed,
             KeyCode::KeyD => self.d_held = pressed,
-            KeyCode::KeyJ => self.j_held = pressed,
-            KeyCode::KeyK => self.k_held = pressed,
+            KeyCode::ArrowDown => self.arrow_down_held = pressed,
+            KeyCode::ArrowUp => self.arrow_up_held = pressed,
             KeyCode::KeyP if pressed => {
                 self.p_edge_pending = true;
             }
@@ -42,8 +42,8 @@ impl FlightInputState {
             a: self.a_held,
             s: self.s_held,
             d: self.d_held,
-            accelerate: self.k_held,
-            decelerate: self.j_held,
+            accelerate: self.arrow_up_held,
+            decelerate: self.arrow_down_held,
             pause_toggle_edge: self.p_edge_pending,
         };
 
@@ -69,8 +69,8 @@ mod tests {
         input.handle_key_event(KeyCode::KeyA, ElementState::Pressed);
         input.handle_key_event(KeyCode::KeyS, ElementState::Pressed);
         input.handle_key_event(KeyCode::KeyD, ElementState::Pressed);
-        input.handle_key_event(KeyCode::KeyJ, ElementState::Pressed);
-        input.handle_key_event(KeyCode::KeyK, ElementState::Pressed);
+        input.handle_key_event(KeyCode::ArrowDown, ElementState::Pressed);
+        input.handle_key_event(KeyCode::ArrowUp, ElementState::Pressed);
 
         let pressed_snapshot = input.snapshot(false);
         assert!(pressed_snapshot.w);
@@ -84,8 +84,8 @@ mod tests {
         input.handle_key_event(KeyCode::KeyA, ElementState::Released);
         input.handle_key_event(KeyCode::KeyS, ElementState::Released);
         input.handle_key_event(KeyCode::KeyD, ElementState::Released);
-        input.handle_key_event(KeyCode::KeyJ, ElementState::Released);
-        input.handle_key_event(KeyCode::KeyK, ElementState::Released);
+        input.handle_key_event(KeyCode::ArrowDown, ElementState::Released);
+        input.handle_key_event(KeyCode::ArrowUp, ElementState::Released);
 
         let released_snapshot = input.snapshot(false);
         assert!(!released_snapshot.w);
@@ -147,7 +147,7 @@ mod tests {
     fn reset_clears_all_state() {
         let mut input = FlightInputState::default();
         input.handle_key_event(KeyCode::KeyW, ElementState::Pressed);
-        input.handle_key_event(KeyCode::KeyK, ElementState::Pressed);
+        input.handle_key_event(KeyCode::ArrowUp, ElementState::Pressed);
         input.handle_key_event(KeyCode::KeyP, ElementState::Pressed);
 
         input.reset();
