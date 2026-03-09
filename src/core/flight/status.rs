@@ -23,7 +23,7 @@ pub struct FlightUpdateReport {
 impl Default for FlightStatus {
     fn default() -> Self {
         Self {
-            paused: false,
+            paused: true,
             speed: 0.0,
             heading: [0.0, 0.0],
             last_warning: None,
@@ -34,16 +34,14 @@ impl Default for FlightStatus {
 #[cfg(test)]
 mod tests {
     use super::{FlightStatus, FlightWarning};
-    use crate::core::flight::motion::MotionState;
 
     #[test]
-    fn default_status_matches_motion_defaults() {
+    fn default_status_starts_paused() {
         let status = FlightStatus::default();
-        let motion = MotionState::default();
 
-        assert_eq!(status.paused, motion.paused);
-        assert_eq!(status.speed, motion.speed_world_per_sec);
-        assert_eq!(status.heading, motion.heading);
+        assert!(status.paused);
+        assert_eq!(status.speed, 0.0);
+        assert_eq!(status.heading, [0.0, 0.0]);
         assert_eq!(status.last_warning, None);
     }
 

@@ -22,7 +22,10 @@ impl FlightSimulator {
     #[must_use]
     pub fn new(limits: FlightLimits) -> Self {
         Self {
-            motion: MotionState::default(),
+            motion: MotionState {
+                paused: true,
+                ..MotionState::default()
+            },
             limits,
             accumulator_secs: 0.0,
             status: FlightStatus::default(),
@@ -99,7 +102,10 @@ impl FlightSimulator {
     }
 
     pub fn reset_motion(&mut self) {
-        self.motion = MotionState::default();
+        self.motion = MotionState {
+            paused: true,
+            ..MotionState::default()
+        };
         self.status = FlightStatus::default();
         self.accumulator_secs = 0.0;
     }
@@ -258,15 +264,7 @@ mod tests {
     fn paused_state_reports_no_state_change() {
         let mut simulator = FlightSimulator::new(test_limits());
 
-        let _ = simulator.advance(
-            Duration::from_secs_f64(1.0 / 60.0),
-            || FlightControlsSnapshot {
-                pause_toggle_edge: true,
-                ..FlightControlsSnapshot::default()
-            },
-            |_, _, _| FlightUpdateReport::default(),
-        );
-
+        // Simulator starts paused; accelerate input should have no effect
         let result = simulator.advance(
             Duration::from_secs_f64(1.0 / 60.0),
             || FlightControlsSnapshot {
@@ -299,7 +297,7 @@ mod tests {
 
         simulator.reset_motion();
 
-        assert_eq!(simulator.status().paused, false);
+        assert_eq!(simulator.status().paused, true);
         assert_eq!(simulator.status().speed, 0.0);
         assert_eq!(simulator.status().heading, [0.0, 0.0]);
         assert_eq!(simulator.status().last_warning, None);
@@ -307,8 +305,9 @@ mod tests {
     }
 
     #[test]
-    fn is_active_true_when_speed_nonzero() {
+    fn is_active_true_when_speed_nonzero_and_unpaused() {
         let mut simulator = FlightSimulator::new(test_limits());
+        simulator.motion.paused = false;
         simulator.motion.speed_world_per_sec = 1.0;
 
         assert!(simulator.is_active());
@@ -333,6 +332,7 @@ mod tests {
     #[test]
     fn status_reflects_motion_and_warnings() {
         let mut simulator = FlightSimulator::new(test_limits());
+        simulator.motion.paused = false;
 
         let result = simulator.advance(
             Duration::from_secs_f64(1.0 / 60.0),
