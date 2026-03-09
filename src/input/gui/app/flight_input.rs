@@ -11,6 +11,7 @@ pub struct FlightInputState {
     arrow_down_held: bool,
     arrow_up_held: bool,
     p_edge_pending: bool,
+    h_edge_pending: bool,
 }
 
 impl FlightInputState {
@@ -27,6 +28,9 @@ impl FlightInputState {
             KeyCode::KeyP if pressed => {
                 self.p_edge_pending = true;
             }
+            KeyCode::KeyH if pressed => {
+                self.h_edge_pending = true;
+            }
             _ => {}
         }
     }
@@ -34,6 +38,7 @@ impl FlightInputState {
     pub fn snapshot(&mut self, text_editing: bool) -> FlightControlsSnapshot {
         if text_editing {
             self.p_edge_pending = false;
+            self.h_edge_pending = false;
             return FlightControlsSnapshot::default();
         }
 
@@ -49,6 +54,12 @@ impl FlightInputState {
 
         self.p_edge_pending = false;
         snapshot
+    }
+
+    pub fn take_pause_overlay_toggle(&mut self) -> bool {
+        let toggle_requested = self.h_edge_pending;
+        self.h_edge_pending = false;
+        toggle_requested
     }
 
     pub fn reset(&mut self) {
@@ -126,11 +137,23 @@ mod tests {
     }
 
     #[test]
+    fn h_press_sets_single_pending_edge_even_with_repeats() {
+        let mut input = FlightInputState::default();
+
+        input.handle_key_event(KeyCode::KeyH, ElementState::Pressed);
+        input.handle_key_event(KeyCode::KeyH, ElementState::Pressed);
+
+        assert!(input.take_pause_overlay_toggle());
+        assert!(!input.take_pause_overlay_toggle());
+    }
+
+    #[test]
     fn focus_suppression_returns_neutral_snapshot_and_clears_edge() {
         let mut input = FlightInputState::default();
 
         input.handle_key_event(KeyCode::KeyW, ElementState::Pressed);
         input.handle_key_event(KeyCode::KeyP, ElementState::Pressed);
+        input.handle_key_event(KeyCode::KeyH, ElementState::Pressed);
 
         let suppressed = input.snapshot(true);
         assert_eq!(
@@ -141,6 +164,7 @@ mod tests {
         let after_focus = input.snapshot(false);
         assert!(after_focus.w);
         assert!(!after_focus.pause_toggle_edge);
+        assert!(!input.take_pause_overlay_toggle());
     }
 
     #[test]
@@ -149,6 +173,7 @@ mod tests {
         input.handle_key_event(KeyCode::KeyW, ElementState::Pressed);
         input.handle_key_event(KeyCode::ArrowUp, ElementState::Pressed);
         input.handle_key_event(KeyCode::KeyP, ElementState::Pressed);
+        input.handle_key_event(KeyCode::KeyH, ElementState::Pressed);
 
         input.reset();
 
@@ -160,5 +185,6 @@ mod tests {
         assert!(!snapshot.accelerate);
         assert!(!snapshot.decelerate);
         assert!(!snapshot.pause_toggle_edge);
+        assert!(!input.take_pause_overlay_toggle());
     }
 }

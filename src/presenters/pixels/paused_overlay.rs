@@ -44,6 +44,9 @@ const GLYPH_I: Glyph = [
 const GLYPH_L: Glyph = [
     0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111,
 ];
+const GLYPH_M: Glyph = [
+    0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001,
+];
 const GLYPH_N: Glyph = [
     0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001,
 ];
@@ -79,10 +82,11 @@ const PAUSED_GLYPHS: [Glyph; 6] = [
     GLYPH_P, GLYPH_A, GLYPH_U, GLYPH_S, GLYPH_E, GLYPH_D,
 ];
 
-const HELP_TEXT_LINES: [&str; 3] = [
+const HELP_TEXT_LINES: [&str; 4] = [
     "W/A/S/D: Up/Left/Down/Right",
     "Up/down arrows: Accelerate/Deccelerate",
     "P: Pause/Unpause",
+    "H: Hide/Unhide this message",
 ];
 
 const PALETTE: [[u8; PixelBuffer::BYTES_PER_PIXEL]; 5] = [
@@ -135,7 +139,7 @@ pub fn draw_frame_overlay(
     frame_height: u32,
     overlay: &FrameOverlay,
 ) {
-    if !overlay.paused {
+    if !overlay.paused || !overlay.show_pause_overlay {
         return;
     }
 
@@ -378,6 +382,7 @@ fn help_text_glyph(ch: char) -> Option<Glyph> {
         'H' => Some(GLYPH_H),
         'I' => Some(GLYPH_I),
         'L' => Some(GLYPH_L),
+        'M' => Some(GLYPH_M),
         'N' => Some(GLYPH_N),
         'O' => Some(GLYPH_O),
         'P' => Some(GLYPH_P),
@@ -470,8 +475,8 @@ mod tests {
     use super::{
         BACKPLATE_PAD_X_CELLS, BACKPLATE_PAD_Y_CELLS, MAX_TEXT_HEIGHT_DENOMINATOR,
         MAX_TEXT_HEIGHT_NUMERATOR, TARGET_BACKPLATE_WIDTH_DENOMINATOR,
-        TARGET_BACKPLATE_WIDTH_NUMERATOR, WORD_COLS, WORD_ROWS, compute_layout,
-        draw_frame_overlay,
+        TARGET_BACKPLATE_WIDTH_NUMERATOR, WORD_COLS, WORD_ROWS, HELP_LINE_COUNT,
+        compute_layout, draw_frame_overlay,
     };
     use crate::{core::data::pixel_buffer::PixelBuffer, input::gui::app::frame_overlay::FrameOverlay};
 
@@ -512,7 +517,7 @@ mod tests {
         );
         assert_eq!(
             layout.backplate_bounds.height,
-            layout.help_line_bounds[2].bottom() - layout.backplate_bounds.y
+            layout.help_line_bounds[HELP_LINE_COUNT - 1].bottom() - layout.backplate_bounds.y
                 + (BACKPLATE_PAD_Y_CELLS * layout.cell_size)
         );
     }
@@ -539,7 +544,7 @@ mod tests {
     fn scale_is_limited_by_frame_height_on_large_shallow_windows() {
         let layout = compute_layout(1_600, 200).expect("layout should fit");
 
-        assert_eq!(layout.cell_size, 2);
+        assert_eq!(layout.cell_size, 7);
     }
 
     #[test]
@@ -567,7 +572,15 @@ mod tests {
         let mut frame = solid_frame(frame_width, frame_height, [25, 40, 60, 255]);
         let before = frame.clone();
 
-        draw_frame_overlay(&mut frame, frame_width, frame_height, &FrameOverlay { paused: true });
+        draw_frame_overlay(
+            &mut frame,
+            frame_width,
+            frame_height,
+            &FrameOverlay {
+                paused: true,
+                show_pause_overlay: true,
+            },
+        );
 
         let mut changed_pixels = 0_usize;
         for y in 0..frame_height {
@@ -592,11 +605,37 @@ mod tests {
     }
 
     #[test]
+    fn hidden_paused_overlay_is_a_no_op() {
+        let mut frame = solid_frame(240, 160, [18, 24, 32, 255]);
+        let before = frame.clone();
+
+        draw_frame_overlay(
+            &mut frame,
+            240,
+            160,
+            &FrameOverlay {
+                paused: true,
+                show_pause_overlay: false,
+            },
+        );
+
+        assert_eq!(frame, before);
+    }
+
+    #[test]
     fn unpaused_overlay_is_a_no_op() {
         let mut frame = solid_frame(240, 160, [18, 24, 32, 255]);
         let before = frame.clone();
 
-        draw_frame_overlay(&mut frame, 240, 160, &FrameOverlay::default());
+        draw_frame_overlay(
+            &mut frame,
+            240,
+            160,
+            &FrameOverlay {
+                paused: false,
+                show_pause_overlay: true,
+            },
+        );
 
         assert_eq!(frame, before);
     }

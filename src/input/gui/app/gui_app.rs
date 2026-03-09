@@ -40,6 +40,7 @@ pub struct GuiApp<T: GuiPresenterPort> {
     last_selected_fractal: FractalKinds,
     last_render_duration: Option<Duration>,
     last_error_message: Option<String>,
+    show_pause_overlay: bool,
     pub egui_ctx: Context,
     pub egui_state: EguiWinitState,
 }
@@ -81,6 +82,7 @@ impl<T: GuiPresenterPort> GuiApp<T> {
             last_selected_fractal,
             last_render_duration: None,
             last_error_message: None,
+            show_pause_overlay: true,
             egui_ctx,
             egui_state,
         }
@@ -136,7 +138,7 @@ impl<T: GuiPresenterPort> GuiApp<T> {
     }
 
     fn build_frame_overlay(&self) -> FrameOverlay {
-        build_frame_overlay_from_paused(self.flight_sim.status().paused)
+        build_frame_overlay_from_state(self.flight_sim.status().paused, self.show_pause_overlay)
     }
 
     fn update_flight_simulation(&mut self, elapsed: Duration, text_editing: bool) {
@@ -389,6 +391,13 @@ impl<T: GuiPresenterPort> GuiApp<T> {
 
                                 let text_editing = self.egui_ctx.wants_keyboard_input();
                                 self.update_flight_simulation(elapsed, text_editing);
+                                let pause_overlay_toggle_requested =
+                                    self.flight_input.take_pause_overlay_toggle();
+
+                                if pause_overlay_toggle_requested && self.flight_sim.status().paused
+                                {
+                                    self.show_pause_overlay = !self.show_pause_overlay;
+                                }
 
                                 let mut request_to_schedule: Option<Arc<FractalConfig>> = None;
                                 if let Some(desired_request) = self.build_desired_request() {
@@ -463,8 +472,11 @@ impl<T: GuiPresenterPort> GuiApp<T> {
     }
 }
 
-fn build_frame_overlay_from_paused(paused: bool) -> FrameOverlay {
-    FrameOverlay { paused }
+fn build_frame_overlay_from_state(paused: bool, show_pause_overlay: bool) -> FrameOverlay {
+    FrameOverlay {
+        paused,
+        show_pause_overlay: paused && show_pause_overlay,
+    }
 }
 
 fn configure_egui_style(ctx: &Context) {
@@ -553,18 +565,31 @@ fn configure_egui_style(ctx: &Context) {
 
 #[cfg(test)]
 mod tests {
-    use super::build_frame_overlay_from_paused;
+    use super::build_frame_overlay_from_state;
     use crate::input::gui::app::frame_overlay::FrameOverlay;
 
     #[test]
-    fn build_frame_overlay_reflects_paused_state() {
+    fn build_frame_overlay_reflects_paused_state_and_visibility_preference() {
         assert_eq!(
-            build_frame_overlay_from_paused(true),
-            FrameOverlay { paused: true }
+            build_frame_overlay_from_state(true, true),
+            FrameOverlay {
+                paused: true,
+                show_pause_overlay: true,
+            }
         );
         assert_eq!(
-            build_frame_overlay_from_paused(false),
-            FrameOverlay { paused: false }
+            build_frame_overlay_from_state(true, false),
+            FrameOverlay {
+                paused: true,
+                show_pause_overlay: false,
+            }
+        );
+        assert_eq!(
+            build_frame_overlay_from_state(false, true),
+            FrameOverlay {
+                paused: false,
+                show_pause_overlay: false,
+            }
         );
     }
 }
