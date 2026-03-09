@@ -205,13 +205,13 @@ impl<T: GuiPresenterPort> GuiApp<T> {
                             FractalKinds::Mandelbrot => {
                                 ui.add(egui::Slider::new(
                                     &mut self.ui_state.mandelbrot.max_iterations,
-                                    1..=1000,
+                                    1..=10000,
                                 ));
                             }
                             FractalKinds::Julia => {
                                 ui.add(egui::Slider::new(
                                     &mut self.ui_state.julia.max_iterations,
-                                    1..=1000,
+                                    1..=10000,
                                 ));
                             }
                         }
