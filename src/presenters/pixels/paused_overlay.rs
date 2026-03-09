@@ -80,8 +80,8 @@ const PAUSED_GLYPHS: [Glyph; 6] = [
 ];
 
 const HELP_TEXT_LINES: [&str; 3] = [
-    "WASD: Up/Left/Down/Right",
-    "Up/down arrow: Accelerate/Deccelerate",
+    "W/A/S/D: Up/Left/Down/Right",
+    "Up/down arrows: Accelerate/Deccelerate",
     "P: Pause/Unpause",
 ];
 
