@@ -14,7 +14,7 @@ use crate::input::gui::app::frame_overlay::FrameOverlay;
 use crate::input::gui::app::flight_input::FlightInputState;
 use crate::input::gui::app::ports::presenter::GuiPresenterPort;
 use crate::input::gui::app::state::GuiAppState;
-use egui::Context;
+use egui::{Color32, Context, Rounding, Stroke};
 use egui_winit::State as EguiWinitState;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -54,6 +54,7 @@ impl<T: GuiPresenterPort> GuiApp<T> {
         let size = window.inner_size();
         let scale_factor = window.scale_factor();
         let egui_ctx = Context::default();
+        configure_egui_style(&egui_ctx);
         let ui_state = GuiAppState::default();
         let last_selected_fractal = ui_state.selected_fractal;
 
@@ -464,6 +465,90 @@ impl<T: GuiPresenterPort> GuiApp<T> {
 
 fn build_frame_overlay_from_paused(paused: bool) -> FrameOverlay {
     FrameOverlay { paused }
+}
+
+fn configure_egui_style(ctx: &Context) {
+    // Colours drawn from the PAUSED overlay palette:
+    //   [88,6,0]  [168,30,0]  [230,88,8]  [255,166,48]  [255,232,180]
+    // Backplate: [6,4,10] at ~69% opacity
+    let amber = Color32::from_rgb(255, 166, 48);
+    let bright_amber = Color32::from_rgb(255, 232, 180);
+    let deep_orange = Color32::from_rgb(230, 88, 8);
+    let dark_orange = Color32::from_rgb(168, 30, 0);
+    let darkest = Color32::from_rgb(88, 6, 0);
+
+    let backplate = Color32::from_rgba_premultiplied(6, 4, 10, 200);
+    let backplate_solid = Color32::from_rgb(16, 12, 24);
+
+    let mut visuals = egui::Visuals::dark();
+
+    // Window chrome
+    visuals.window_fill = backplate;
+    visuals.window_rounding = Rounding::same(8.0);
+    visuals.window_shadow = egui::epaint::Shadow {
+        extrusion: 12.0,
+        color: Color32::from_black_alpha(120),
+    };
+    visuals.window_stroke = Stroke::new(1.0, dark_orange);
+
+    // Panel backgrounds
+    visuals.panel_fill = backplate;
+
+    // Selection highlight
+    visuals.selection.bg_fill = Color32::from_rgba_premultiplied(230, 88, 8, 100);
+    visuals.selection.stroke = Stroke::new(1.0, bright_amber);
+
+    // Widget states — inactive
+    visuals.widgets.inactive.bg_fill = Color32::from_rgba_premultiplied(88, 6, 0, 80);
+    visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::from_rgba_premultiplied(168, 30, 0, 120));
+    visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, amber);
+    visuals.widgets.inactive.rounding = Rounding::same(4.0);
+
+    // Widget states — hovered
+    visuals.widgets.hovered.bg_fill = Color32::from_rgba_premultiplied(168, 30, 0, 120);
+    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, deep_orange);
+    visuals.widgets.hovered.fg_stroke = Stroke::new(1.5, bright_amber);
+    visuals.widgets.hovered.rounding = Rounding::same(4.0);
+
+    // Widget states — active (pressed)
+    visuals.widgets.active.bg_fill = Color32::from_rgba_premultiplied(230, 88, 8, 160);
+    visuals.widgets.active.bg_stroke = Stroke::new(1.0, amber);
+    visuals.widgets.active.fg_stroke = Stroke::new(2.0, bright_amber);
+    visuals.widgets.active.rounding = Rounding::same(4.0);
+
+    // Widget states — open (e.g. open combo box)
+    visuals.widgets.open.bg_fill = Color32::from_rgba_premultiplied(168, 30, 0, 140);
+    visuals.widgets.open.bg_stroke = Stroke::new(1.0, deep_orange);
+    visuals.widgets.open.fg_stroke = Stroke::new(1.0, bright_amber);
+    visuals.widgets.open.rounding = Rounding::same(4.0);
+
+    // Non-interactive widgets (labels, separators)
+    visuals.widgets.noninteractive.bg_fill = Color32::TRANSPARENT;
+    visuals.widgets.noninteractive.bg_stroke = Stroke::new(0.5, Color32::from_rgba_premultiplied(255, 166, 48, 60));
+    visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, amber);
+    visuals.widgets.noninteractive.rounding = Rounding::same(4.0);
+
+    // Override text colour globally to warm amber
+    visuals.override_text_color = Some(amber);
+
+    // Popup menus (combo box dropdowns)
+    visuals.popup_shadow = egui::epaint::Shadow {
+        extrusion: 8.0,
+        color: Color32::from_black_alpha(100),
+    };
+
+    // Hyperlinks and special text
+    visuals.hyperlink_color = bright_amber;
+    visuals.warn_fg_color = deep_orange;
+    visuals.error_fg_color = darkest;
+
+    // Extreme background (behind popups, dropdown area)
+    visuals.extreme_bg_color = backplate_solid;
+
+    // Faint background (text edit fields, sliders track)
+    visuals.faint_bg_color = Color32::from_rgba_premultiplied(20, 14, 30, 180);
+
+    ctx.set_visuals(visuals);
 }
 
 #[cfg(test)]
