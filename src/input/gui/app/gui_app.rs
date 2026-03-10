@@ -110,22 +110,8 @@ impl<T: GuiPresenterPort> GuiApp<T> {
     }
 
     fn build_desired_request(&self) -> Option<Arc<FractalConfig>> {
-        if self.width < 1 || self.height < 1 {
-            return None;
-        }
-
-        let pixel_rect = match PixelRect::new(
-            Point { x: 0, y: 0 },
-            Point {
-                x: (self.width as i32) - 1,
-                y: (self.height as i32) - 1,
-            },
-        ) {
-            Ok(rect) => rect,
-            Err(_) => return None,
-        };
-
-        Some(Arc::new(self.ui_state.build_render_request(pixel_rect)))
+        self.viewport_pixel_rect()
+            .map(|pixel_rect| Arc::new(self.ui_state.build_render_request(pixel_rect)))
     }
 
     fn warning_label(warning: FlightWarning) -> &'static str {
@@ -142,6 +128,7 @@ impl<T: GuiPresenterPort> GuiApp<T> {
     }
 
     fn update_flight_simulation(&mut self, elapsed: Duration, text_editing: bool) {
+        let viewport = self.viewport_pixel_rect();
         let selected_fractal = self.ui_state.selected_fractal;
         let flight_input = &mut self.flight_input;
         let ui_state = &mut self.ui_state;
@@ -151,13 +138,40 @@ impl<T: GuiPresenterPort> GuiApp<T> {
             || flight_input.snapshot(text_editing),
             |motion, dt, limits| match selected_fractal {
                 FractalKinds::Mandelbrot => {
-                    mandelbrot_flight::step_flight(&mut ui_state.mandelbrot, motion, dt, limits)
+                    mandelbrot_flight::step_flight_in_viewport(
+                        &mut ui_state.mandelbrot,
+                        motion,
+                        dt,
+                        limits,
+                        viewport,
+                    )
                 }
                 FractalKinds::Julia => {
-                    julia_flight::step_flight(&mut ui_state.julia, motion, dt, limits)
+                    julia_flight::step_flight_in_viewport(
+                        &mut ui_state.julia,
+                        motion,
+                        dt,
+                        limits,
+                        viewport,
+                    )
                 }
             },
         );
+    }
+
+    fn viewport_pixel_rect(&self) -> Option<PixelRect> {
+        if self.width < 1 || self.height < 1 {
+            return None;
+        }
+
+        PixelRect::new(
+            Point { x: 0, y: 0 },
+            Point {
+                x: (self.width as i32) - 1,
+                y: (self.height as i32) - 1,
+            },
+        )
+        .ok()
     }
 
     fn schedule_desired_request(&mut self, desired_request: Arc<FractalConfig>) {
@@ -264,12 +278,12 @@ impl<T: GuiPresenterPort> GuiApp<T> {
                     let bottom_right = active_region.bottom_right();
 
                     ui.label(format!(
-                        "Real: [{:.8}, {:.8}]",
+                        "Real: [{:.16}, {:.16}]",
                         top_left.real, bottom_right.real
                     ));
 
                     ui.label(format!(
-                        "Imag: [{:.8}, {:.8}]",
+                        "Imag: [{:.16}, {:.16}]",
                         top_left.imag, bottom_right.imag
                     ));
 

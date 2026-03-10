@@ -1,5 +1,5 @@
 use crate::core::{
-    data::{complex::Complex, complex_rect::ComplexRect},
+    data::{complex::Complex, complex_rect::ComplexRect, pixel_rect::PixelRect},
     flight::{FlightLimits, FlightUpdateReport, FlightWarning, MotionState},
     fractals::julia::julia_config::{JuliaConfig, default_region},
 };
@@ -9,6 +9,16 @@ pub fn step_flight(
     motion: &MotionState,
     dt: f64,
     limits: &FlightLimits,
+) -> FlightUpdateReport {
+    step_flight_in_viewport(config, motion, dt, limits, None)
+}
+
+pub fn step_flight_in_viewport(
+    config: &mut JuliaConfig,
+    motion: &MotionState,
+    dt: f64,
+    limits: &FlightLimits,
+    viewport: Option<PixelRect>,
 ) -> FlightUpdateReport {
     let mut report = FlightUpdateReport::default();
 
@@ -46,20 +56,34 @@ pub fn step_flight(
         }
     }
 
-    let min_extent = limits.min_region_extent.min(limits.max_region_extent);
     let max_extent = limits.min_region_extent.max(limits.max_region_extent);
+    let min_extent = limits.min_region_extent.min(limits.max_region_extent).max(0.0);
+    let (mut min_width, mut min_height) = (min_extent, min_extent);
+
+    if let Some(pixel_rect) = viewport {
+        let (real_scale, imag_scale) = axis_coordinate_scales(&config.region);
+        min_width = min_width.max(
+            limits.precision_min_axis_extent(real_scale, pixel_rect.width()),
+        );
+        min_height = min_height.max(
+            limits.precision_min_axis_extent(imag_scale, pixel_rect.height()),
+        );
+    }
+
+    min_width = min_width.min(max_extent);
+    min_height = min_height.min(max_extent);
 
     let mut width = config.region.width();
     let mut height = config.region.height();
 
-    let scale = if width < min_extent || height < min_extent {
-        let width_scale = if width < min_extent {
-            min_extent / width
+    let scale = if width < min_width || height < min_height {
+        let width_scale = if width < min_width {
+            min_width / width
         } else {
             1.0
         };
-        let height_scale = if height < min_extent {
-            min_extent / height
+        let height_scale = if height < min_height {
+            min_height / height
         } else {
             1.0
         };
@@ -169,6 +193,16 @@ fn region_center(region: &ComplexRect) -> (f64, f64) {
     )
 }
 
+fn axis_coordinate_scales(region: &ComplexRect) -> (f64, f64) {
+    let top_left = region.top_left();
+    let bottom_right = region.bottom_right();
+
+    (
+        top_left.real.abs().max(bottom_right.real.abs()).max(1.0),
+        top_left.imag.abs().max(bottom_right.imag.abs()).max(1.0),
+    )
+}
+
 fn region_is_finite(region: &ComplexRect) -> bool {
     let top_left = region.top_left();
     let bottom_right = region.bottom_right();
@@ -193,9 +227,9 @@ fn reset_non_finite(config: &mut JuliaConfig, report: &mut FlightUpdateReport) {
 
 #[cfg(test)]
 mod tests {
-    use super::{region_center, step_flight};
+    use super::{axis_coordinate_scales, region_center, step_flight, step_flight_in_viewport};
     use crate::core::{
-        data::{complex::Complex, complex_rect::ComplexRect},
+        data::{complex::Complex, complex_rect::ComplexRect, pixel_rect::PixelRect, point::Point},
         flight::{FlightLimits, FlightWarning, MotionState},
         fractals::julia::julia_config::{JuliaConfig, default_region},
     };
@@ -500,5 +534,27 @@ mod tests {
         assert_eq!(inf_config.region, default_region());
         assert!(inf_report.clamped);
         assert_eq!(inf_report.warning, Some(FlightWarning::NonFiniteReset));
+    }
+
+    #[test]
+    fn viewport_precision_floor_clamps_deep_zoom_before_rows_collapse() {
+        let limits = FlightLimits::default();
+        let viewport = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 1919, y: 1079 })
+            .expect("viewport should be valid");
+        let mut config = JuliaConfig {
+            region: rect(-5e-13, -5e-13, 5e-13, 5e-13),
+            ..JuliaConfig::default()
+        };
+        let motion = motion([1.0, 0.0], 1.0);
+        let (real_scale, imag_scale) = axis_coordinate_scales(&config.region);
+        let min_width = limits.precision_min_axis_extent(real_scale, viewport.width());
+        let min_height = limits.precision_min_axis_extent(imag_scale, viewport.height());
+
+        let report = step_flight_in_viewport(&mut config, &motion, 0.0, &limits, Some(viewport));
+
+        assert!(report.clamped);
+        assert_eq!(report.warning, Some(FlightWarning::ExtentClamped));
+        assert!(config.region.width() >= min_width);
+        assert!(config.region.height() >= min_height);
     }
 }
