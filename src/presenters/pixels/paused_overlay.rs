@@ -13,6 +13,12 @@ const HELP_TEXT_SCALE_NUMERATOR: u32 = 1;
 const HELP_TEXT_SCALE_DENOMINATOR: u32 = 3;
 const HELP_TEXT_TOP_GAP_CELLS: u32 = 14;
 const HELP_TEXT_LINE_GAP_CELLS: u32 = 6;
+const LIMIT_TARGET_BACKPLATE_WIDTH_NUMERATOR: u32 = 1;
+const LIMIT_TARGET_BACKPLATE_WIDTH_DENOMINATOR: u32 = 2;
+const LIMIT_MAX_TEXT_HEIGHT_NUMERATOR: u32 = 1;
+const LIMIT_MAX_TEXT_HEIGHT_DENOMINATOR: u32 = 6;
+const LIMIT_TOP_MARGIN_NUMERATOR: u32 = 1;
+const LIMIT_TOP_MARGIN_DENOMINATOR: u32 = 12;
 
 type Glyph = [u8; GLYPH_HEIGHT_CELLS as usize];
 
@@ -81,6 +87,21 @@ const GLYPH_COLON: Glyph = [
 const PAUSED_GLYPHS: [Glyph; 6] = [
     GLYPH_P, GLYPH_A, GLYPH_U, GLYPH_S, GLYPH_E, GLYPH_D,
 ];
+const LIMIT_REACHED_GLYPHS: [Glyph; 13] = [
+    GLYPH_L,
+    GLYPH_I,
+    GLYPH_M,
+    GLYPH_I,
+    GLYPH_T,
+    GLYPH_SPACE,
+    GLYPH_R,
+    GLYPH_E,
+    GLYPH_A,
+    GLYPH_C,
+    GLYPH_H,
+    GLYPH_E,
+    GLYPH_D,
+];
 
 const HELP_TEXT_LINES: [&str; 4] = [
     "W/A/S/D: Up/Left/Down/Right",
@@ -105,6 +126,9 @@ const WORD_COLS: u32 =
     WORD_LEN * GLYPH_WIDTH_CELLS + (WORD_LEN.saturating_sub(1)) * GLYPH_GAP_CELLS;
 const WORD_ROWS: u32 = GLYPH_HEIGHT_CELLS;
 const HELP_LINE_COUNT: usize = HELP_TEXT_LINES.len();
+const LIMIT_WORD_LEN: u32 = LIMIT_REACHED_GLYPHS.len() as u32;
+const LIMIT_WORD_COLS: u32 =
+    LIMIT_WORD_LEN * GLYPH_WIDTH_CELLS + (LIMIT_WORD_LEN.saturating_sub(1)) * GLYPH_GAP_CELLS;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 struct Rect {
@@ -133,17 +157,31 @@ struct OverlayLayout {
     backplate_bounds: Rect,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct BannerLayout {
+    cell_size: u32,
+    word_bounds: Rect,
+    backplate_bounds: Rect,
+}
+
 pub fn draw_frame_overlay(
     frame: &mut [u8],
     frame_width: u32,
     frame_height: u32,
     overlay: &FrameOverlay,
 ) {
-    if !overlay.paused || !overlay.show_pause_overlay {
+    if overlay.paused && overlay.show_pause_overlay {
+        draw_pause_overlay(frame, frame_width, frame_height);
         return;
     }
 
-    let Some(layout) = compute_layout(frame_width, frame_height) else {
+    if overlay.show_limit_overlay {
+        draw_limit_overlay(frame, frame_width, frame_height);
+    }
+}
+
+fn draw_pause_overlay(frame: &mut [u8], frame_width: u32, frame_height: u32) {
+    let Some(layout) = compute_pause_layout(frame_width, frame_height) else {
         return;
     };
 
@@ -194,7 +232,41 @@ pub fn draw_frame_overlay(
     }
 }
 
-fn compute_layout(frame_width: u32, frame_height: u32) -> Option<OverlayLayout> {
+fn draw_limit_overlay(frame: &mut [u8], frame_width: u32, frame_height: u32) {
+    let Some(layout) = compute_limit_layout(frame_width, frame_height) else {
+        return;
+    };
+
+    fill_rect(
+        frame,
+        frame_width,
+        frame_height,
+        layout.backplate_bounds,
+        BACKPLATE_COLOUR,
+    );
+
+    let mut glyph_left = layout.word_bounds.x;
+
+    for (glyph_index, glyph) in LIMIT_REACHED_GLYPHS.iter().enumerate() {
+        draw_word_glyph(
+            frame,
+            frame_width,
+            frame_height,
+            layout.cell_size,
+            glyph_left,
+            layout.word_bounds.y,
+            glyph,
+            glyph_index,
+        );
+
+        glyph_left += GLYPH_WIDTH_CELLS * layout.cell_size;
+        if glyph_index + 1 < LIMIT_REACHED_GLYPHS.len() {
+            glyph_left += GLYPH_GAP_CELLS * layout.cell_size;
+        }
+    }
+}
+
+fn compute_pause_layout(frame_width: u32, frame_height: u32) -> Option<OverlayLayout> {
     if frame_width == 0 || frame_height == 0 {
         return None;
     }
@@ -209,7 +281,7 @@ fn compute_layout(frame_width: u32, frame_height: u32) -> Option<OverlayLayout> 
     let mut best_that_fits = None;
 
     for cell_size in 1..=frame_width.min(frame_height) {
-        let layout = layout_for_cell_size(frame_width, frame_height, cell_size);
+        let layout = pause_layout_for_cell_size(frame_width, frame_height, cell_size);
         if layout.backplate_bounds.width > frame_width
             || layout.backplate_bounds.height > frame_height
         {
@@ -227,7 +299,7 @@ fn compute_layout(frame_width: u32, frame_height: u32) -> Option<OverlayLayout> 
     best_within_target.or(best_that_fits)
 }
 
-fn layout_for_cell_size(frame_width: u32, frame_height: u32, cell_size: u32) -> OverlayLayout {
+fn pause_layout_for_cell_size(frame_width: u32, frame_height: u32, cell_size: u32) -> OverlayLayout {
     let help_cell_size = help_cell_size(cell_size);
     let word_width = WORD_COLS * cell_size;
     let word_height = WORD_ROWS * cell_size;
@@ -279,6 +351,67 @@ fn layout_for_cell_size(frame_width: u32, frame_height: u32, cell_size: u32) -> 
         help_cell_size,
         word_bounds,
         help_line_bounds,
+        backplate_bounds,
+    }
+}
+
+fn compute_limit_layout(frame_width: u32, frame_height: u32) -> Option<BannerLayout> {
+    if frame_width == 0 || frame_height == 0 {
+        return None;
+    }
+
+    let target_backplate_width = frame_width
+        .saturating_mul(LIMIT_TARGET_BACKPLATE_WIDTH_NUMERATOR)
+        / LIMIT_TARGET_BACKPLATE_WIDTH_DENOMINATOR;
+    let target_backplate_height = frame_height
+        .saturating_mul(LIMIT_MAX_TEXT_HEIGHT_NUMERATOR)
+        / LIMIT_MAX_TEXT_HEIGHT_DENOMINATOR;
+    let mut best_within_target = None;
+    let mut best_that_fits = None;
+
+    for cell_size in 1..=frame_width.min(frame_height) {
+        let layout = limit_layout_for_cell_size(frame_width, frame_height, cell_size);
+        if layout.backplate_bounds.width > frame_width
+            || layout.backplate_bounds.height > frame_height
+        {
+            break;
+        }
+
+        best_that_fits = Some(layout);
+        if layout.backplate_bounds.width <= target_backplate_width
+            && layout.backplate_bounds.height <= target_backplate_height
+        {
+            best_within_target = Some(layout);
+        }
+    }
+
+    best_within_target.or(best_that_fits)
+}
+
+fn limit_layout_for_cell_size(frame_width: u32, frame_height: u32, cell_size: u32) -> BannerLayout {
+    let word_width = LIMIT_WORD_COLS * cell_size;
+    let word_height = WORD_ROWS * cell_size;
+    let backplate_width = word_width + (BACKPLATE_PAD_X_CELLS * 2 * cell_size);
+    let backplate_height = word_height + (BACKPLATE_PAD_Y_CELLS * 2 * cell_size);
+    let top_margin = frame_height
+        .saturating_mul(LIMIT_TOP_MARGIN_NUMERATOR)
+        / LIMIT_TOP_MARGIN_DENOMINATOR;
+    let backplate_bounds = Rect {
+        x: frame_width.saturating_sub(backplate_width) / 2,
+        y: top_margin.min(frame_height.saturating_sub(backplate_height)),
+        width: backplate_width,
+        height: backplate_height,
+    };
+    let word_bounds = Rect {
+        x: backplate_bounds.x + (BACKPLATE_PAD_X_CELLS * cell_size),
+        y: backplate_bounds.y + (BACKPLATE_PAD_Y_CELLS * cell_size),
+        width: word_width,
+        height: word_height,
+    };
+
+    BannerLayout {
+        cell_size,
+        word_bounds,
         backplate_bounds,
     }
 }
@@ -476,7 +609,7 @@ mod tests {
         BACKPLATE_PAD_X_CELLS, BACKPLATE_PAD_Y_CELLS, MAX_TEXT_HEIGHT_DENOMINATOR,
         MAX_TEXT_HEIGHT_NUMERATOR, TARGET_BACKPLATE_WIDTH_DENOMINATOR,
         TARGET_BACKPLATE_WIDTH_NUMERATOR, WORD_COLS, WORD_ROWS, HELP_LINE_COUNT,
-        compute_layout, draw_frame_overlay,
+        compute_limit_layout, compute_pause_layout, draw_frame_overlay,
     };
     use crate::{core::data::pixel_buffer::PixelBuffer, input::gui::app::frame_overlay::FrameOverlay};
 
@@ -491,7 +624,7 @@ mod tests {
 
     #[test]
     fn layout_dimensions_match_overlay_content() {
-        let layout = compute_layout(800, 600).expect("layout should fit");
+        let layout = compute_pause_layout(800, 600).expect("layout should fit");
 
         assert_eq!(layout.word_bounds.width, WORD_COLS * layout.cell_size);
         assert_eq!(layout.word_bounds.height, WORD_ROWS * layout.cell_size);
@@ -526,7 +659,7 @@ mod tests {
     fn layout_backplate_is_centered_in_frame() {
         let frame_width = 801;
         let frame_height = 601;
-        let layout = compute_layout(frame_width, frame_height).expect("layout should fit");
+        let layout = compute_pause_layout(frame_width, frame_height).expect("layout should fit");
 
         let right_margin = frame_width - layout.backplate_bounds.right();
         let bottom_margin = frame_height - layout.backplate_bounds.bottom();
@@ -537,12 +670,12 @@ mod tests {
 
     #[test]
     fn scale_clamps_down_on_tiny_windows() {
-        assert_eq!(compute_layout(60, 40), None);
+        assert_eq!(compute_pause_layout(60, 40), None);
     }
 
     #[test]
     fn scale_is_limited_by_frame_height_on_large_shallow_windows() {
-        let layout = compute_layout(1_600, 200).expect("layout should fit");
+        let layout = compute_pause_layout(1_600, 200).expect("layout should fit");
 
         assert_eq!(layout.cell_size, 7);
     }
@@ -551,7 +684,7 @@ mod tests {
     fn backplate_stays_within_target_bounds_on_wide_viewports() {
         let frame_width = 1_114;
         let frame_height = 768;
-        let layout = compute_layout(frame_width, frame_height).expect("layout should fit");
+        let layout = compute_pause_layout(frame_width, frame_height).expect("layout should fit");
 
         assert!(
             layout.backplate_bounds.width
@@ -568,7 +701,7 @@ mod tests {
     fn rasterization_only_changes_pixels_inside_backplate_bounds() {
         let frame_width = 320;
         let frame_height = 240;
-        let layout = compute_layout(frame_width, frame_height).expect("layout should fit");
+        let layout = compute_pause_layout(frame_width, frame_height).expect("layout should fit");
         let mut frame = solid_frame(frame_width, frame_height, [25, 40, 60, 255]);
         let before = frame.clone();
 
@@ -579,6 +712,7 @@ mod tests {
             &FrameOverlay {
                 paused: true,
                 show_pause_overlay: true,
+                show_limit_overlay: false,
             },
         );
 
@@ -616,6 +750,7 @@ mod tests {
             &FrameOverlay {
                 paused: true,
                 show_pause_overlay: false,
+                show_limit_overlay: false,
             },
         );
 
@@ -634,9 +769,82 @@ mod tests {
             &FrameOverlay {
                 paused: false,
                 show_pause_overlay: true,
+                show_limit_overlay: false,
             },
         );
 
         assert_eq!(frame, before);
+    }
+
+    #[test]
+    fn limit_overlay_changes_pixels_inside_banner_bounds() {
+        let frame_width = 640;
+        let frame_height = 360;
+        let layout = compute_limit_layout(frame_width, frame_height).expect("layout should fit");
+        let mut frame = solid_frame(frame_width, frame_height, [25, 40, 60, 255]);
+        let before = frame.clone();
+
+        draw_frame_overlay(
+            &mut frame,
+            frame_width,
+            frame_height,
+            &FrameOverlay {
+                paused: false,
+                show_pause_overlay: false,
+                show_limit_overlay: true,
+            },
+        );
+
+        let mut changed_pixels = 0_usize;
+        for y in 0..frame_height {
+            for x in 0..frame_width {
+                let index = ((y * frame_width + x) as usize) * PixelBuffer::BYTES_PER_PIXEL;
+                if frame[index..index + PixelBuffer::BYTES_PER_PIXEL]
+                    != before[index..index + PixelBuffer::BYTES_PER_PIXEL]
+                {
+                    changed_pixels += 1;
+                    assert!(
+                        x >= layout.backplate_bounds.x
+                            && x < layout.backplate_bounds.right()
+                            && y >= layout.backplate_bounds.y
+                            && y < layout.backplate_bounds.bottom(),
+                        "pixel changed outside limit banner at ({x}, {y})"
+                    );
+                }
+            }
+        }
+
+        assert!(changed_pixels > 0);
+    }
+
+    #[test]
+    fn paused_overlay_takes_precedence_over_limit_overlay() {
+        let frame_width = 640;
+        let frame_height = 360;
+        let mut with_both = solid_frame(frame_width, frame_height, [18, 24, 32, 255]);
+        let mut pause_only = with_both.clone();
+
+        draw_frame_overlay(
+            &mut with_both,
+            frame_width,
+            frame_height,
+            &FrameOverlay {
+                paused: true,
+                show_pause_overlay: true,
+                show_limit_overlay: true,
+            },
+        );
+        draw_frame_overlay(
+            &mut pause_only,
+            frame_width,
+            frame_height,
+            &FrameOverlay {
+                paused: true,
+                show_pause_overlay: true,
+                show_limit_overlay: false,
+            },
+        );
+
+        assert_eq!(with_both, pause_only);
     }
 }

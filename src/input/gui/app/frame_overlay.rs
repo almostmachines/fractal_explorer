@@ -2,4 +2,5 @@
 pub struct FrameOverlay {
     pub paused: bool,
     pub show_pause_overlay: bool,
+    pub show_limit_overlay: bool,
 }

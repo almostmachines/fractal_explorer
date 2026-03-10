@@ -124,7 +124,12 @@ impl<T: GuiPresenterPort> GuiApp<T> {
     }
 
     fn build_frame_overlay(&self) -> FrameOverlay {
-        build_frame_overlay_from_state(self.flight_sim.status().paused, self.show_pause_overlay)
+        let flight_status = self.flight_sim.status();
+        build_frame_overlay_from_state(
+            flight_status.paused,
+            self.show_pause_overlay,
+            flight_status.last_warning,
+        )
     }
 
     fn update_flight_simulation(&mut self, elapsed: Duration, text_editing: bool) {
@@ -486,10 +491,18 @@ impl<T: GuiPresenterPort> GuiApp<T> {
     }
 }
 
-fn build_frame_overlay_from_state(paused: bool, show_pause_overlay: bool) -> FrameOverlay {
+fn build_frame_overlay_from_state(
+    paused: bool,
+    show_pause_overlay: bool,
+    last_warning: Option<FlightWarning>,
+) -> FrameOverlay {
+    let show_pause_overlay = paused && show_pause_overlay;
+
     FrameOverlay {
         paused,
-        show_pause_overlay: paused && show_pause_overlay,
+        show_pause_overlay,
+        show_limit_overlay: matches!(last_warning, Some(FlightWarning::ExtentClamped))
+            && !show_pause_overlay,
     }
 }
 
@@ -580,29 +593,40 @@ fn configure_egui_style(ctx: &Context) {
 #[cfg(test)]
 mod tests {
     use super::build_frame_overlay_from_state;
-    use crate::input::gui::app::frame_overlay::FrameOverlay;
+    use crate::{core::flight::FlightWarning, input::gui::app::frame_overlay::FrameOverlay};
 
     #[test]
-    fn build_frame_overlay_reflects_paused_state_and_visibility_preference() {
+    fn build_frame_overlay_reflects_pause_and_limit_visibility() {
         assert_eq!(
-            build_frame_overlay_from_state(true, true),
+            build_frame_overlay_from_state(true, true, Some(FlightWarning::ExtentClamped)),
             FrameOverlay {
                 paused: true,
                 show_pause_overlay: true,
+                show_limit_overlay: false,
             }
         );
         assert_eq!(
-            build_frame_overlay_from_state(true, false),
+            build_frame_overlay_from_state(true, false, Some(FlightWarning::ExtentClamped)),
             FrameOverlay {
                 paused: true,
                 show_pause_overlay: false,
+                show_limit_overlay: true,
             }
         );
         assert_eq!(
-            build_frame_overlay_from_state(false, true),
+            build_frame_overlay_from_state(false, true, Some(FlightWarning::CenterClamped)),
             FrameOverlay {
                 paused: false,
                 show_pause_overlay: false,
+                show_limit_overlay: false,
+            }
+        );
+        assert_eq!(
+            build_frame_overlay_from_state(false, true, Some(FlightWarning::ExtentClamped)),
+            FrameOverlay {
+                paused: false,
+                show_pause_overlay: false,
+                show_limit_overlay: true,
             }
         );
     }
