@@ -12,6 +12,7 @@ pixels = { version = "0.15", optional = true }
 egui = { version = "0.26", optional = true }
 egui-winit = { version = "0.26", optional = true }
 egui-wgpu = { version = "0.26", optional = true }
+dashu-float = "0.4.4"
 
 [features]
 default = []

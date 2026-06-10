@@ -4,3 +4,4 @@ pub mod errors;
 pub mod flight;
 pub mod mandelbrot_config;
 pub mod params;
+pub mod perturbation;
