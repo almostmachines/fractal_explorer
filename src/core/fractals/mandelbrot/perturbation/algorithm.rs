@@ -106,9 +106,10 @@ impl MandelbrotPerturbationAlgorithm {
         })
     }
 
-    /// Per-pixel offsets from the view centre, matching the linear
-    /// top-left-to-bottom-right mapping of the direct algorithm.
-    fn pixel_steps(&self) -> PixelSteps {
+    /// Per-pixel offsets from the reference point, matching the linear
+    /// top-left-to-bottom-right mapping of the direct algorithm. Used by
+    /// both the CPU loop and the GPU compute path.
+    pub fn delta_grid(&self) -> DeltaGrid {
         let width_px = self.pixel_rect.width();
         let height_px = self.pixel_rect.height();
 
@@ -133,7 +134,7 @@ impl MandelbrotPerturbationAlgorithm {
             .centre()
             .sub_to_f64(self.orbit_or_compute().point());
 
-        PixelSteps {
+        DeltaGrid {
             origin_re: origin_re - half_width,
             origin_im: origin_im - half_height,
             step_re,
@@ -201,14 +202,18 @@ impl MandelbrotPerturbationAlgorithm {
     }
 }
 
-struct PixelSteps {
-    origin_re: f64,
-    origin_im: f64,
-    step_re: f64,
-    step_im: f64,
+/// The affine pixel → δc mapping for one render: `δc(x, y) = origin +
+/// (x·step_re, y·step_im)`, with pixel coordinates relative to the top-left
+/// of the pixel rect and δc relative to the reference point.
+#[derive(Debug, Clone, Copy)]
+pub struct DeltaGrid {
+    pub origin_re: f64,
+    pub origin_im: f64,
+    pub step_re: f64,
+    pub step_im: f64,
 }
 
-impl PixelSteps {
+impl DeltaGrid {
     #[inline]
     fn delta_c(&self, x_rel: i32, y_rel: i32) -> (f64, f64) {
         (
@@ -231,7 +236,7 @@ impl FractalAlgorithm for MandelbrotPerturbationAlgorithm {
         }
 
         let orbit = Arc::clone(self.orbit_or_compute());
-        let steps = self.pixel_steps();
+        let steps = self.delta_grid();
         let top_left = self.pixel_rect.top_left();
         let (dc_re, dc_im) = steps.delta_c(pixel.x - top_left.x, pixel.y - top_left.y);
 
@@ -270,7 +275,7 @@ impl FractalAlgorithm for MandelbrotPerturbationAlgorithm {
 
         let orbit = Arc::clone(self.orbit_or_compute());
         let orbit_values = orbit.orbit();
-        let steps = self.pixel_steps();
+        let steps = self.delta_grid();
         let y_rel = y - top_left.y;
 
         output.reserve((x_end - x_start + 1) as usize);

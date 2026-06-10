@@ -889,6 +889,7 @@ dependencies = [
 name = "fractal_explorer"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
  "cargo-llvm-cov",
  "criterion",
  "dashu-float",
@@ -896,7 +897,9 @@ dependencies = [
  "egui-wgpu",
  "egui-winit",
  "pixels",
+ "pollster",
  "rayon",
+ "wgpu",
  "winit",
 ]
 

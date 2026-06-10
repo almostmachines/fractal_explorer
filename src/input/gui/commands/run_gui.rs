@@ -38,7 +38,8 @@ where
         ));
 
         let presenter: P = self.presenter_factory.build(window, event_loop_proxy);
-        let controller = InteractiveController::new(presenter.share_adapter());
+        let gpu_renderer = Box::new(crate::gpu::perturbation_renderer::WgpuPerturbationRenderer::new());
+        let controller = InteractiveController::new(presenter.share_adapter(), Some(gpu_renderer));
         let app = GuiApp::new(window, &event_loop, presenter, controller);
 
         app.run(event_loop);

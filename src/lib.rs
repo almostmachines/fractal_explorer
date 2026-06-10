@@ -1,6 +1,8 @@
 mod presenters;
 mod controllers;
 pub mod core;
+#[cfg(feature = "gpu")]
+pub mod gpu;
 #[cfg(feature = "gui")]
 mod input;
 

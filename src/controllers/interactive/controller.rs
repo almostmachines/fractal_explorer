@@ -2,12 +2,18 @@ use crate::controllers::interactive::data::fractal_config::FractalConfig;
 use crate::controllers::interactive::data::frame_data::FrameData;
 use crate::controllers::interactive::errors::render::RenderError;
 use crate::controllers::interactive::events::render::RenderEvent;
+use crate::controllers::interactive::ports::gpu_renderer::GpuFractalRendererPort;
 use crate::controllers::interactive::ports::presenter::InteractiveControllerPresenterPort;
 use crate::core::actions::cancellation::CancelToken;
+use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
+use crate::core::actions::generate_pixel_buffer::generate_pixel_buffer::{
+    GeneratePixelBufferCancelableError, generate_pixel_buffer_cancelable,
+};
 use crate::core::actions::render_pixel_buffer::{
     RenderPixelBufferCancelableError, render_pixel_buffer_parallel_rayon_cancelable,
 };
 use crate::core::data::pixel_buffer::PixelBuffer;
+use crate::core::fractals::mandelbrot::render_path::MandelbrotRenderPath;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::{self, JoinHandle};
@@ -28,7 +34,10 @@ pub struct InteractiveController {
 }
 
 impl InteractiveController {
-    pub fn new(presenter_port: Arc<dyn InteractiveControllerPresenterPort>) -> Self {
+    pub fn new(
+        presenter_port: Arc<dyn InteractiveControllerPresenterPort>,
+        gpu_renderer: Option<Box<dyn GpuFractalRendererPort>>,
+    ) -> Self {
         let shared = Arc::new(SharedState {
             generation: AtomicU64::new(0),
             last_completed_generation: AtomicU64::new(0),
@@ -41,7 +50,7 @@ impl InteractiveController {
         let worker_shared = Arc::clone(&shared);
 
         let worker = thread::spawn(move || {
-            Self::worker_loop(&worker_shared);
+            Self::worker_loop(&worker_shared, gpu_renderer);
         });
 
         Self {
@@ -79,7 +88,10 @@ impl InteractiveController {
             .load(Ordering::Acquire)
     }
 
-    fn worker_loop(shared: &Arc<SharedState>) {
+    fn worker_loop(
+        shared: &Arc<SharedState>,
+        mut gpu_renderer: Option<Box<dyn GpuFractalRendererPort>>,
+    ) {
         loop {
             let (job_generation, request) = {
                 let mut guard = shared.latest_request.lock().unwrap();
@@ -102,7 +114,8 @@ impl InteractiveController {
             };
 
             let start = Instant::now();
-            let result = Self::render_request(&request, &cancel_token);
+            let result =
+                Self::render_request(&request, &cancel_token, gpu_renderer.as_deref_mut());
             let render_duration = start.elapsed();
 
             match result {
@@ -151,11 +164,41 @@ impl InteractiveController {
     fn render_request<C: CancelToken>(
         request: &FractalConfig,
         cancel: &C,
+        gpu_renderer: Option<&mut (dyn GpuFractalRendererPort + 'static)>,
     ) -> Result<PixelBuffer, RenderOutcome> {
         // Resolve the perturbation reference orbit (if any) before the
         // pixel pass; this is the only potentially slow per-frame setup.
         if request.prepare(cancel).is_err() {
             return Err(RenderOutcome::Cancelled);
+        }
+
+        // Deep-zoom Mandelbrot frames go to the GPU when a renderer is
+        // available and accepts the request; anything else (including a
+        // declined GPU render) takes the CPU path below.
+        if let (
+            Some(gpu),
+            FractalConfig::Mandelbrot {
+                algorithm: MandelbrotRenderPath::Perturbation(perturbation),
+                ..
+            },
+        ) = (gpu_renderer, request)
+        {
+            if let Some(iterations) = gpu.render_iterations(perturbation) {
+                return generate_pixel_buffer_cancelable(
+                    iterations,
+                    request.colour_map(),
+                    perturbation.pixel_rect(),
+                    cancel,
+                )
+                .map_err(|e| match e {
+                    GeneratePixelBufferCancelableError::Cancelled(_) => RenderOutcome::Cancelled,
+                    other => RenderOutcome::Error(other.to_string()),
+                });
+            }
+
+            if cancel.is_cancelled() {
+                return Err(RenderOutcome::Cancelled);
+            }
         }
 
         let algorithm = request.algorithm();
@@ -221,6 +264,50 @@ mod tests {
         fn present(&self, event: RenderEvent) {
             self.events.lock().unwrap().push(event);
         }
+    }
+
+    /// Mock GPU renderer: counts calls and either serves a fixed iteration
+    /// value for every pixel or declines so the CPU path takes over.
+    struct MockGpuRenderer {
+        calls: Arc<Mutex<u32>>,
+        serve_iterations: Option<u32>,
+    }
+
+    impl crate::controllers::interactive::ports::gpu_renderer::GpuFractalRendererPort
+        for MockGpuRenderer
+    {
+        fn render_iterations(
+            &mut self,
+            algorithm: &crate::core::fractals::mandelbrot::perturbation::algorithm::MandelbrotPerturbationAlgorithm,
+        ) -> Option<Vec<u32>> {
+            *self.calls.lock().unwrap() += 1;
+
+            let pixel_rect = algorithm.pixel_rect();
+            let pixels = (pixel_rect.width() * pixel_rect.height()) as usize;
+
+            self.serve_iterations.map(|value| vec![value; pixels])
+        }
+    }
+
+    fn create_perturbation_request(pixel_rect: PixelRect) -> FractalConfig {
+        use crate::core::fractals::mandelbrot::mandelbrot_config::MandelbrotConfig;
+
+        let mut config = MandelbrotConfig::default();
+        config.region = config
+            .region
+            .with_extent(1e-12, 1e-12)
+            .expect("deep test region is valid");
+
+        let request = config.build_render_request(pixel_rect);
+        assert!(matches!(
+            request,
+            FractalConfig::Mandelbrot {
+                algorithm: MandelbrotRenderPath::Perturbation(_),
+                ..
+            }
+        ));
+
+        request
     }
 
     fn wait_for_events(sink: &MockPresenterPort, timeout: Duration) -> Vec<RenderEvent> {
@@ -293,7 +380,8 @@ mod tests {
     fn test_submit_request_emits_frame() {
         let presenter_port = Arc::new(MockPresenterPort::default());
         let mut controller = InteractiveController::new(
-            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>,
+            None,
         );
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
@@ -328,10 +416,78 @@ mod tests {
     }
 
     #[test]
+    fn gpu_renderer_serves_deep_zoom_frames() {
+        let presenter_port = Arc::new(MockPresenterPort::default());
+        let calls = Arc::new(Mutex::new(0u32));
+        let gpu = MockGpuRenderer {
+            calls: Arc::clone(&calls),
+            serve_iterations: Some(1),
+        };
+        let mut controller = InteractiveController::new(
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>,
+            Some(Box::new(gpu)),
+        );
+
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
+        let request = Arc::new(create_perturbation_request(pixel_rect));
+
+        controller.submit_request(request);
+        let events = wait_for_events(presenter_port.as_ref(), Duration::from_secs(2));
+
+        let frame = events
+            .iter()
+            .find_map(|e| match e {
+                RenderEvent::Frame(frame) => Some(frame),
+                RenderEvent::Error(err) => panic!("unexpected render error: {}", err.message),
+            })
+            .expect("expected a frame from the GPU path");
+
+        assert_eq!(*calls.lock().unwrap(), 1, "GPU renderer should be asked once");
+
+        // Every pixel was served iteration count 1, so the frame must be a
+        // single uniform colour.
+        let buffer = frame.pixel_buffer.buffer();
+        let first_pixel = &buffer[0..PixelBuffer::BYTES_PER_PIXEL];
+        for pixel in buffer.chunks_exact(PixelBuffer::BYTES_PER_PIXEL) {
+            assert_eq!(pixel, first_pixel);
+        }
+
+        controller.shutdown();
+    }
+
+    #[test]
+    fn declined_gpu_render_falls_back_to_cpu() {
+        let presenter_port = Arc::new(MockPresenterPort::default());
+        let calls = Arc::new(Mutex::new(0u32));
+        let gpu = MockGpuRenderer {
+            calls: Arc::clone(&calls),
+            serve_iterations: None,
+        };
+        let mut controller = InteractiveController::new(
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>,
+            Some(Box::new(gpu)),
+        );
+
+        let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
+        let request = Arc::new(create_perturbation_request(pixel_rect));
+
+        controller.submit_request(request);
+        let events = wait_for_events(presenter_port.as_ref(), Duration::from_secs(2));
+
+        let saw_frame = events.iter().any(|e| matches!(e, RenderEvent::Frame(_)));
+
+        assert_eq!(*calls.lock().unwrap(), 1, "GPU renderer should be offered the frame");
+        assert!(saw_frame, "CPU fallback must still produce a frame");
+
+        controller.shutdown();
+    }
+
+    #[test]
     fn test_generation_ids_increment() {
         let presenter_port = Arc::new(MockPresenterPort::default());
         let mut controller = InteractiveController::new(
-            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>,
+            None,
         );
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
@@ -373,7 +529,8 @@ mod tests {
     fn test_last_completed_generation_starts_at_zero() {
         let presenter_port = Arc::new(MockPresenterPort::default());
         let mut controller = InteractiveController::new(
-            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>,
+            None,
         );
 
         assert_eq!(controller.last_completed_generation(), 0);
@@ -385,7 +542,8 @@ mod tests {
     fn test_last_completed_generation_updates_after_frame_completion() {
         let presenter_port = Arc::new(MockPresenterPort::default());
         let mut controller = InteractiveController::new(
-            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>,
+            None,
         );
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
@@ -407,7 +565,8 @@ mod tests {
     fn test_last_completed_generation_updates_after_error_completion() {
         let presenter_port = Arc::new(MockPresenterPort::default());
         let mut controller = InteractiveController::new(
-            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>,
+            None,
         );
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
@@ -435,7 +594,8 @@ mod tests {
     fn test_last_completed_generation_is_monotonic_across_mixed_completions() {
         let presenter_port = Arc::new(MockPresenterPort::default());
         let mut controller = InteractiveController::new(
-            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>,
+            None,
         );
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
@@ -538,7 +698,8 @@ mod tests {
         // (no Error events for cancelled work).
         let presenter_port = Arc::new(MockPresenterPort::default());
         let mut controller = InteractiveController::new(
-            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>,
+            None,
         );
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
@@ -582,7 +743,8 @@ mod tests {
         // Submit multiple requests; the final frame should have the highest generation.
         let presenter_port = Arc::new(MockPresenterPort::default());
         let mut controller = InteractiveController::new(
-            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>,
+            None,
         );
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
@@ -633,7 +795,8 @@ mod tests {
         // (i.e., no partially rendered or corrupted data).
         let presenter_port = Arc::new(MockPresenterPort::default());
         let mut controller = InteractiveController::new(
-            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>
+            Arc::clone(&presenter_port) as Arc<dyn InteractiveControllerPresenterPort>,
+            None,
         );
 
         let pixel_rect = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 3, y: 3 }).unwrap();
