@@ -278,19 +278,39 @@ impl<T: GuiPresenterPort> GuiApp<T> {
                     ui.separator();
                     ui.label("View region:");
 
-                    let active_region = self.ui_state.active_region();
-                    let top_left = active_region.top_left();
-                    let bottom_right = active_region.bottom_right();
+                    match self.ui_state.selected_fractal {
+                        FractalKinds::Mandelbrot => {
+                            let region = &self.ui_state.mandelbrot.region;
+                            let digits = centre_display_digits(region.min_extent());
+                            let (re, im) = region.centre().to_decimal_strings(digits);
 
-                    ui.label(format!(
-                        "Real: [{:.16}, {:.16}]",
-                        top_left.real, bottom_right.real
-                    ));
+                            ui.label(format!("Centre re: {re}"));
+                            ui.label(format!("Centre im: {im}"));
+                            ui.label(format!(
+                                "Renderer: {}",
+                                if self.ui_state.mandelbrot.uses_perturbation() {
+                                    "perturbation (deep zoom)"
+                                } else {
+                                    "direct f64"
+                                }
+                            ));
+                        }
+                        FractalKinds::Julia => {
+                            let region = self.ui_state.julia.region;
+                            let top_left = region.top_left();
+                            let bottom_right = region.bottom_right();
 
-                    ui.label(format!(
-                        "Imag: [{:.16}, {:.16}]",
-                        top_left.imag, bottom_right.imag
-                    ));
+                            ui.label(format!(
+                                "Real: [{:.16}, {:.16}]",
+                                top_left.real, bottom_right.real
+                            ));
+
+                            ui.label(format!(
+                                "Imag: [{:.16}, {:.16}]",
+                                top_left.imag, bottom_right.imag
+                            ));
+                        }
+                    }
 
                     if ui.button("Reset view").clicked() {
                         self.ui_state.reset_view();
@@ -322,10 +342,10 @@ impl<T: GuiPresenterPort> GuiApp<T> {
                         "Heading: ({:.2}, {:.2})",
                         flight_status.heading[0], flight_status.heading[1]
                     ));
+                    let (extent_width, extent_height) = self.ui_state.active_extent();
                     ui.label(format!(
-                        "Extent: w={:.8}, h={:.8}",
-                        active_region.width(),
-                        active_region.height()
+                        "Extent: w={:.6e}, h={:.6e}",
+                        extent_width, extent_height
                     ));
 
                     if let Some(warning) = flight_status.last_warning {
@@ -489,6 +509,18 @@ impl<T: GuiPresenterPort> GuiApp<T> {
             })
             .expect("Event loop error");
     }
+}
+
+/// Enough decimal digits to distinguish positions within the current view,
+/// plus a small margin.
+fn centre_display_digits(extent: f64) -> usize {
+    let zoom_digits = if extent > 0.0 && extent.is_finite() {
+        (-extent.log10()).ceil().max(0.0) as usize
+    } else {
+        0
+    };
+
+    (zoom_digits + 4).clamp(8, 320)
 }
 
 fn build_frame_overlay_from_state(

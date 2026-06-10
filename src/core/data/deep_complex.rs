@@ -72,6 +72,40 @@ impl DeepComplex {
         })
     }
 
+    /// Returns a copy with the real component replaced by an f64 value,
+    /// keeping the current precision. Returns `None` if `re` is not finite.
+    #[must_use]
+    pub fn with_re_f64(&self, re: f64) -> Option<Self> {
+        if !re.is_finite() {
+            return None;
+        }
+
+        Some(Self {
+            re: FBig::try_from(re)
+                .ok()?
+                .with_precision(self.precision_bits())
+                .value(),
+            im: self.im.clone(),
+        })
+    }
+
+    /// Returns a copy with the imaginary component replaced by an f64 value,
+    /// keeping the current precision. Returns `None` if `im` is not finite.
+    #[must_use]
+    pub fn with_im_f64(&self, im: f64) -> Option<Self> {
+        if !im.is_finite() {
+            return None;
+        }
+
+        Some(Self {
+            re: self.re.clone(),
+            im: FBig::try_from(im)
+                .ok()?
+                .with_precision(self.precision_bits())
+                .value(),
+        })
+    }
+
     /// Returns `self - other` rounded to f64 components. Only meaningful
     /// when the two points are close (e.g. view centre minus reference
     /// point); the difference is then well within f64 range.

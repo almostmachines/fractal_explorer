@@ -53,7 +53,11 @@ impl Default for FlightLimits {
             tick_hz: 60,
             base_accel_world_per_sec2: 0.5,
             max_speed_abs_world_per_sec: 5.0,
-            min_region_extent: 1e-15,
+            // Mandelbrot zooms via perturbation rendering, so the only hard
+            // floor is the f64 exponent range of the extent itself. Julia is
+            // additionally clamped by the viewport precision floor (see
+            // precision_min_axis_extent), which kicks in far earlier.
+            min_region_extent: 1e-280,
             max_region_extent: 20.0,
             max_center_abs: 100.0,
             precision_guard_ulps: 128.0,

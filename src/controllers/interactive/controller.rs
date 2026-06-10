@@ -152,6 +152,12 @@ impl InteractiveController {
         request: &FractalConfig,
         cancel: &C,
     ) -> Result<PixelBuffer, RenderOutcome> {
+        // Resolve the perturbation reference orbit (if any) before the
+        // pixel pass; this is the only potentially slow per-frame setup.
+        if request.prepare(cancel).is_err() {
+            return Err(RenderOutcome::Cancelled);
+        }
+
         let algorithm = request.algorithm();
         let colour_map = request.colour_map();
         let pixel_rect = algorithm.pixel_rect();
@@ -197,6 +203,7 @@ mod tests {
     use crate::core::fractals::mandelbrot::algorithm::MandelbrotAlgorithm;
     use crate::core::fractals::mandelbrot::colour_mapping::factory::mandelbrot_colour_map_factory;
     use crate::core::fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds;
+    use crate::core::fractals::mandelbrot::render_path::MandelbrotRenderPath;
 
     #[derive(Default)]
     struct MockPresenterPort {
@@ -253,7 +260,7 @@ mod tests {
 
         FractalConfig::Mandelbrot {
             colour_map,
-            algorithm,
+            algorithm: MandelbrotRenderPath::Direct(algorithm),
         }
     }
 
@@ -278,7 +285,7 @@ mod tests {
 
         FractalConfig::Mandelbrot {
             colour_map,
-            algorithm,
+            algorithm: MandelbrotRenderPath::Direct(algorithm),
         }
     }
 

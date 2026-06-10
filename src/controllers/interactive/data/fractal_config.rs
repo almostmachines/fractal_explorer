@@ -1,15 +1,16 @@
+use crate::core::actions::cancellation::{CancelToken, Cancelled};
 use crate::core::actions::generate_fractal::ports::fractal_algorithm::FractalAlgorithm;
 use crate::core::actions::generate_pixel_buffer::ports::colour_map::ColourMap;
 use crate::core::fractals::{
     julia::{algorithm::JuliaAlgorithm, colour_mapping::map::JuliaColourMap},
-    mandelbrot::{algorithm::MandelbrotAlgorithm, colour_mapping::map::MandelbrotColourMap},
+    mandelbrot::{colour_mapping::map::MandelbrotColourMap, render_path::MandelbrotRenderPath},
 };
 use crate::core::util::pixel_to_complex_coords::PixelToComplexCoordsError;
 
 pub enum FractalConfig {
     Mandelbrot {
         colour_map: Box<dyn MandelbrotColourMap>,
-        algorithm: MandelbrotAlgorithm,
+        algorithm: MandelbrotRenderPath,
     },
     Julia {
         colour_map: Box<dyn JuliaColourMap>,
@@ -31,6 +32,16 @@ impl FractalConfig {
         match self {
             FractalConfig::Mandelbrot { colour_map, .. } => colour_map.as_ref(),
             FractalConfig::Julia { colour_map, .. } => colour_map.as_ref(),
+        }
+    }
+
+    /// Resolves per-render preparation work (e.g. the perturbation reference
+    /// orbit) before pixels are computed, honouring cancellation. Runs on
+    /// the render worker thread.
+    pub fn prepare<C: CancelToken + ?Sized>(&self, cancel: &C) -> Result<(), Cancelled> {
+        match self {
+            FractalConfig::Mandelbrot { algorithm, .. } => algorithm.prepare(cancel),
+            FractalConfig::Julia { .. } => Ok(()),
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::core::{
-    data::{complex::Complex, complex_rect::ComplexRect, pixel_rect::PixelRect},
+    data::pixel_rect::PixelRect,
     flight::{FlightLimits, FlightUpdateReport, FlightWarning, MotionState},
     fractals::mandelbrot::mandelbrot_config::{MandelbrotConfig, default_region},
 };
@@ -13,12 +13,20 @@ pub fn step_flight(
     step_flight_in_viewport(config, motion, dt, limits, None)
 }
 
+/// Advances the Mandelbrot view by one flight tick.
+///
+/// The view is a `DeepRegion` (arbitrary-precision centre, f64 extents), so
+/// unlike the f64 viewport-precision floor used for Julia, zooming is only
+/// limited by the f64 exponent range of the extent itself
+/// (`FlightLimits::min_region_extent`, ~1e-280 by default). The viewport is
+/// accepted for signature parity but not needed: perturbation rendering
+/// keeps adjacent pixels distinct at any permitted depth.
 pub fn step_flight_in_viewport(
     config: &mut MandelbrotConfig,
     motion: &MotionState,
     dt: f64,
     limits: &FlightLimits,
-    viewport: Option<PixelRect>,
+    _viewport: Option<PixelRect>,
 ) -> FlightUpdateReport {
     let mut report = FlightUpdateReport::default();
 
@@ -28,74 +36,55 @@ pub fn step_flight_in_viewport(
 
     let scale = limits.zoom_base.powf(-motion.speed_world_per_sec * dt);
 
-    if let Some(region) =
-        scaled_region_about_focal(&config.region, scale, motion.heading, limits.steer_strength, dt)
+    if !scale.is_finite() || scale <= 0.0 || !limits.steer_strength.is_finite() || !dt.is_finite()
     {
-        config.region = region;
-    } else {
         reset_non_finite(config, &mut report);
         return report;
     }
 
-    let max_center_abs = limits.max_center_abs.abs();
     let width = config.region.width();
     let height = config.region.height();
-    let (center_real, center_imag) = region_center(&config.region);
-    let clamped_center_real = center_real.clamp(-max_center_abs, max_center_abs);
-    let clamped_center_imag = center_imag.clamp(-max_center_abs, max_center_abs);
 
-    if clamped_center_real != center_real || clamped_center_imag != center_imag {
-        if let Some(region) =
-            rebuild_region(clamped_center_real, clamped_center_imag, width, height)
-        {
-            config.region = region;
-            mark_warning(&mut report, FlightWarning::CenterClamped);
-        } else {
-            reset_non_finite(config, &mut report);
-            return report;
-        }
+    // Pan distance follows the current view size so steering feels the same
+    // at every depth.
+    let pan_re = motion.heading[0] * limits.steer_strength * width * dt;
+    let pan_im = motion.heading[1] * limits.steer_strength * height * dt;
+
+    let mut new_width = width * scale;
+    let mut new_height = height * scale;
+
+    if !new_width.is_finite() || !new_height.is_finite() || new_width <= 0.0 || new_height <= 0.0
+    {
+        reset_non_finite(config, &mut report);
+        return report;
     }
 
     let max_extent = limits.min_region_extent.max(limits.max_region_extent);
-    let min_extent = limits.min_region_extent.min(limits.max_region_extent).max(0.0);
-    let (mut min_width, mut min_height) = (min_extent, min_extent);
+    let min_extent = limits
+        .min_region_extent
+        .min(limits.max_region_extent)
+        .max(0.0);
 
-    if let Some(pixel_rect) = viewport {
-        let (real_scale, imag_scale) = axis_coordinate_scales(&config.region);
-        min_width = min_width.max(
-            limits.precision_min_axis_extent(real_scale, pixel_rect.width()),
-        );
-        min_height = min_height.max(
-            limits.precision_min_axis_extent(imag_scale, pixel_rect.height()),
-        );
-    }
-
-    min_width = min_width.min(max_extent);
-    min_height = min_height.min(max_extent);
-
-    let mut width = config.region.width();
-    let mut height = config.region.height();
-
-    let scale = if width < min_width || height < min_height {
-        let width_scale = if width < min_width {
-            min_width / width
+    let extent_scale = if new_width < min_extent || new_height < min_extent {
+        let width_scale = if new_width < min_extent {
+            min_extent / new_width
         } else {
             1.0
         };
-        let height_scale = if height < min_height {
-            min_height / height
+        let height_scale = if new_height < min_extent {
+            min_extent / new_height
         } else {
             1.0
         };
         width_scale.max(height_scale)
-    } else if width > max_extent || height > max_extent {
-        let width_scale = if width > max_extent {
-            max_extent / width
+    } else if new_width > max_extent || new_height > max_extent {
+        let width_scale = if new_width > max_extent {
+            max_extent / new_width
         } else {
             1.0
         };
-        let height_scale = if height > max_extent {
-            max_extent / height
+        let height_scale = if new_height > max_extent {
+            max_extent / new_height
         } else {
             1.0
         };
@@ -104,115 +93,62 @@ pub fn step_flight_in_viewport(
         1.0
     };
 
-    if scale != 1.0 {
-        width *= scale;
-        height *= scale;
-        let (center_real, center_imag) = region_center(&config.region);
+    let extent_clamped = extent_scale != 1.0;
+    if extent_clamped {
+        new_width *= extent_scale;
+        new_height *= extent_scale;
+    }
 
-        if let Some(region) = rebuild_region(center_real, center_imag, width, height) {
-            config.region = region;
-            mark_warning(&mut report, FlightWarning::ExtentClamped);
-        } else {
+    if !new_width.is_finite() || !new_height.is_finite() || new_width <= 0.0 || new_height <= 0.0
+    {
+        reset_non_finite(config, &mut report);
+        return report;
+    }
+
+    // Resize, grow centre precision to suit the new depth, then pan — in
+    // that order, so the pan offset is not swallowed by rounding.
+    let resized = match config.region.with_extent(new_width, new_height) {
+        Ok(region) => region.normalised(),
+        Err(_) => {
             reset_non_finite(config, &mut report);
             return report;
         }
-    }
+    };
 
-    if !region_is_finite(&config.region) {
+    let Some(mut region) = resized.panned_by(pan_re, pan_im) else {
         reset_non_finite(config, &mut report);
+        return report;
+    };
+
+    let max_center_abs = limits.max_center_abs.abs();
+    let (centre_re, centre_im) = region.centre().to_f64();
+    let clamped_re = centre_re.clamp(-max_center_abs, max_center_abs);
+    let clamped_im = centre_im.clamp(-max_center_abs, max_center_abs);
+
+    if clamped_re != centre_re {
+        let Some(centre) = region.centre().with_re_f64(clamped_re) else {
+            reset_non_finite(config, &mut report);
+            return report;
+        };
+        region = region.with_centre(centre);
+        mark_warning(&mut report, FlightWarning::CenterClamped);
     }
 
+    if clamped_im != centre_im {
+        let Some(centre) = region.centre().with_im_f64(clamped_im) else {
+            reset_non_finite(config, &mut report);
+            return report;
+        };
+        region = region.with_centre(centre);
+        mark_warning(&mut report, FlightWarning::CenterClamped);
+    }
+
+    if extent_clamped {
+        mark_warning(&mut report, FlightWarning::ExtentClamped);
+    }
+
+    config.region = region;
     report
-}
-
-fn scaled_region_about_focal(
-    region: &ComplexRect,
-    scale: f64,
-    heading: [f64; 2],
-    steer_strength: f64,
-    dt: f64,
-) -> Option<ComplexRect> {
-    if !scale.is_finite() || scale <= 0.0 || !steer_strength.is_finite() || !dt.is_finite() {
-        return None;
-    }
-
-    let width = region.width();
-    let height = region.height();
-    let (center_real, center_imag) = region_center(region);
-
-    let pan_real = heading[0] * steer_strength * width * dt;
-    let pan_imag = heading[1] * steer_strength * height * dt;
-
-    let new_center_real = center_real + pan_real;
-    let new_center_imag = center_imag + pan_imag;
-    let new_width = width * scale;
-    let new_height = height * scale;
-
-    rebuild_region(new_center_real, new_center_imag, new_width, new_height)
-}
-
-fn rebuild_region(
-    center_real: f64,
-    center_imag: f64,
-    width: f64,
-    height: f64,
-) -> Option<ComplexRect> {
-    if !center_real.is_finite()
-        || !center_imag.is_finite()
-        || !width.is_finite()
-        || !height.is_finite()
-        || width <= 0.0
-        || height <= 0.0
-    {
-        return None;
-    }
-
-    let half_width = width * 0.5;
-    let half_height = height * 0.5;
-
-    ComplexRect::new(
-        Complex {
-            real: center_real - half_width,
-            imag: center_imag - half_height,
-        },
-        Complex {
-            real: center_real + half_width,
-            imag: center_imag + half_height,
-        },
-    )
-    .ok()
-}
-
-fn region_center(region: &ComplexRect) -> (f64, f64) {
-    let top_left = region.top_left();
-    let bottom_right = region.bottom_right();
-
-    (
-        (top_left.real + bottom_right.real) * 0.5,
-        (top_left.imag + bottom_right.imag) * 0.5,
-    )
-}
-
-fn axis_coordinate_scales(region: &ComplexRect) -> (f64, f64) {
-    let top_left = region.top_left();
-    let bottom_right = region.bottom_right();
-
-    (
-        top_left.real.abs().max(bottom_right.real.abs()).max(1.0),
-        top_left.imag.abs().max(bottom_right.imag.abs()).max(1.0),
-    )
-}
-
-fn region_is_finite(region: &ComplexRect) -> bool {
-    let top_left = region.top_left();
-    let bottom_right = region.bottom_right();
-
-    top_left.real.is_finite()
-        && top_left.imag.is_finite()
-        && bottom_right.real.is_finite()
-        && bottom_right.imag.is_finite()
-        && region.width().is_finite()
-        && region.height().is_finite()
 }
 
 fn mark_warning(report: &mut FlightUpdateReport, warning: FlightWarning) {
@@ -227,32 +163,30 @@ fn reset_non_finite(config: &mut MandelbrotConfig, report: &mut FlightUpdateRepo
 
 #[cfg(test)]
 mod tests {
-    use super::{axis_coordinate_scales, region_center, step_flight, step_flight_in_viewport};
+    use super::{step_flight, step_flight_in_viewport};
     use crate::core::{
-        data::{complex::Complex, complex_rect::ComplexRect, pixel_rect::PixelRect, point::Point},
+        data::{deep_complex::DeepComplex, deep_region::DeepRegion},
         flight::{FlightLimits, FlightWarning, MotionState},
         fractals::mandelbrot::mandelbrot_config::{MandelbrotConfig, default_region},
     };
 
     const EPSILON: f64 = 1e-12;
 
-    fn rect(
-        top_left_real: f64,
-        top_left_imag: f64,
-        bottom_right_real: f64,
-        bottom_right_imag: f64,
-    ) -> ComplexRect {
-        ComplexRect::new(
-            Complex {
-                real: top_left_real,
-                imag: top_left_imag,
-            },
-            Complex {
-                real: bottom_right_real,
-                imag: bottom_right_imag,
-            },
+    fn region(centre_re: f64, centre_im: f64, width: f64, height: f64) -> DeepRegion {
+        DeepRegion::new(
+            DeepComplex::from_f64(centre_re, centre_im).expect("test centre is finite"),
+            width,
+            height,
         )
         .expect("test region should be valid")
+        .normalised()
+    }
+
+    fn config_with(region: DeepRegion) -> MandelbrotConfig {
+        MandelbrotConfig {
+            region,
+            ..MandelbrotConfig::default()
+        }
     }
 
     fn motion(heading: [f64; 2], speed_world_per_sec: f64) -> MotionState {
@@ -272,10 +206,10 @@ mod tests {
         );
     }
 
-    fn assert_region_center(region: &ComplexRect, expected_real: f64, expected_imag: f64) {
-        let (center_real, center_imag) = region_center(region);
-        assert_approx_eq(center_real, expected_real);
-        assert_approx_eq(center_imag, expected_imag);
+    fn assert_centre(config: &MandelbrotConfig, expected_re: f64, expected_im: f64) {
+        let (re, im) = config.region.centre().to_f64();
+        assert_approx_eq(re, expected_re);
+        assert_approx_eq(im, expected_im);
     }
 
     #[test]
@@ -284,10 +218,7 @@ mod tests {
             steer_strength: 0.0,
             ..FlightLimits::default()
         };
-        let mut config = MandelbrotConfig {
-            region: rect(-2.0, -1.0, 2.0, 1.0),
-            ..MandelbrotConfig::default()
-        };
+        let mut config = config_with(region(0.0, 0.0, 4.0, 2.0));
         let motion = motion([1.0, 0.0], 1.0);
         let dt = 0.5;
         let scale = limits.zoom_base.powf(-motion.speed_world_per_sec * dt);
@@ -296,7 +227,7 @@ mod tests {
 
         assert_approx_eq(config.region.width(), 4.0 * scale);
         assert_approx_eq(config.region.height(), 2.0 * scale);
-        assert_region_center(&config.region, 0.0, 0.0);
+        assert_centre(&config, 0.0, 0.0);
         assert!(!report.clamped);
         assert_eq!(report.warning, None);
     }
@@ -307,10 +238,7 @@ mod tests {
             steer_strength: 0.0,
             ..FlightLimits::default()
         };
-        let mut config = MandelbrotConfig {
-            region: rect(-2.0, -1.0, 2.0, 1.0),
-            ..MandelbrotConfig::default()
-        };
+        let mut config = config_with(region(0.0, 0.0, 4.0, 2.0));
         let motion = motion([1.0, 0.0], -1.0);
         let dt = 0.5;
         let scale = limits.zoom_base.powf(-motion.speed_world_per_sec * dt);
@@ -319,24 +247,21 @@ mod tests {
 
         assert_approx_eq(config.region.width(), 4.0 * scale);
         assert_approx_eq(config.region.height(), 2.0 * scale);
-        assert_region_center(&config.region, 0.0, 0.0);
+        assert_centre(&config, 0.0, 0.0);
     }
 
     #[test]
-    fn steering_changes_center_while_zooming() {
+    fn steering_changes_centre_while_zooming() {
         let limits = FlightLimits::default();
-        let mut config = MandelbrotConfig {
-            region: rect(-2.0, -1.0, 2.0, 1.0),
-            ..MandelbrotConfig::default()
-        };
+        let mut config = config_with(region(0.0, 0.0, 4.0, 2.0));
         let motion = motion([1.0, 0.0], 1.0);
         let dt = 1.0;
         let scale = limits.zoom_base.powf(-motion.speed_world_per_sec * dt);
-        let expected_center_shift = dt * limits.steer_strength * 4.0;
+        let expected_centre_shift = dt * limits.steer_strength * 4.0;
 
         step_flight(&mut config, &motion, dt, &limits);
 
-        assert_region_center(&config.region, expected_center_shift, 0.0);
+        assert_centre(&config, expected_centre_shift, 0.0);
         assert_approx_eq(config.region.width(), 4.0 * scale);
         assert_approx_eq(config.region.height(), 2.0 * scale);
     }
@@ -344,51 +269,24 @@ mod tests {
     #[test]
     fn negative_speed_pans_same_direction_as_heading() {
         let limits = FlightLimits::default();
-        let mut config = MandelbrotConfig {
-            region: rect(-2.0, -1.0, 2.0, 1.0),
-            ..MandelbrotConfig::default()
-        };
+        let mut config = config_with(region(0.0, 0.0, 4.0, 2.0));
         let motion = motion([1.0, 0.0], -1.0);
         let dt = 1.0;
         let scale = limits.zoom_base.powf(-motion.speed_world_per_sec * dt);
-        let expected_center_shift = dt * limits.steer_strength * 4.0;
+        let expected_centre_shift = dt * limits.steer_strength * 4.0;
 
         step_flight(&mut config, &motion, dt, &limits);
 
-        assert!(expected_center_shift > 0.0);
-        assert_region_center(&config.region, expected_center_shift, 0.0);
-        assert_approx_eq(config.region.width(), 4.0 * scale);
-        assert_approx_eq(config.region.height(), 2.0 * scale);
-    }
-
-    #[test]
-    fn steer_strength_zero_means_zoom_about_center() {
-        let limits = FlightLimits {
-            steer_strength: 0.0,
-            ..FlightLimits::default()
-        };
-        let mut config = MandelbrotConfig {
-            region: rect(-2.0, -1.0, 2.0, 1.0),
-            ..MandelbrotConfig::default()
-        };
-        let motion = motion([1.0, 0.0], 1.0);
-        let dt = 1.0;
-        let scale = limits.zoom_base.powf(-motion.speed_world_per_sec * dt);
-
-        step_flight(&mut config, &motion, dt, &limits);
-
-        assert_region_center(&config.region, 0.0, 0.0);
+        assert!(expected_centre_shift > 0.0);
+        assert_centre(&config, expected_centre_shift, 0.0);
         assert_approx_eq(config.region.width(), 4.0 * scale);
         assert_approx_eq(config.region.height(), 2.0 * scale);
     }
 
     #[test]
     fn paused_or_zero_speed_is_a_noop() {
-        let original = rect(-2.0, -1.0, 2.0, 1.0);
-        let mut paused_config = MandelbrotConfig {
-            region: original,
-            ..MandelbrotConfig::default()
-        };
+        let original = region(0.0, 0.0, 4.0, 2.0);
+        let mut paused_config = config_with(original.clone());
         let paused_motion = MotionState {
             paused: true,
             speed_world_per_sec: 1.0,
@@ -406,10 +304,7 @@ mod tests {
         assert!(!paused_report.clamped);
         assert_eq!(paused_report.warning, None);
 
-        let mut zero_speed_config = MandelbrotConfig {
-            region: original,
-            ..MandelbrotConfig::default()
-        };
+        let mut zero_speed_config = config_with(original.clone());
         let zero_speed_motion = motion([1.0, 0.0], 0.0);
 
         let zero_speed_report = step_flight(
@@ -425,50 +320,41 @@ mod tests {
     }
 
     #[test]
-    fn center_clamp_limits_real_and_preserves_dimensions() {
+    fn centre_clamp_limits_real_and_preserves_dimensions() {
         let limits = FlightLimits {
             max_center_abs: 0.2,
             steer_strength: 0.5,
             ..FlightLimits::default()
         };
-        let mut config = MandelbrotConfig {
-            region: rect(-1.0, -1.0, 1.0, 1.0),
-            ..MandelbrotConfig::default()
-        };
+        let mut config = config_with(region(0.0, 0.0, 2.0, 2.0));
         let motion = motion([1.0, 0.0], 1.0);
 
         let report = step_flight(&mut config, &motion, 1.0, &limits);
 
         assert_approx_eq(config.region.width(), 1.0);
         assert_approx_eq(config.region.height(), 1.0);
-        assert_region_center(&config.region, 0.2, 0.0);
+        assert_centre(&config, 0.2, 0.0);
         assert!(report.clamped);
         assert_eq!(report.warning, Some(FlightWarning::CenterClamped));
     }
 
     #[test]
-    fn center_clamp_limits_imag_and_both_axes() {
+    fn centre_clamp_limits_imag_and_both_axes() {
         let limits = FlightLimits {
             max_center_abs: 0.2,
             steer_strength: 0.5,
             ..FlightLimits::default()
         };
 
-        let mut imag_config = MandelbrotConfig {
-            region: rect(-1.0, -1.0, 1.0, 1.0),
-            ..MandelbrotConfig::default()
-        };
+        let mut imag_config = config_with(region(0.0, 0.0, 2.0, 2.0));
         let imag_motion = motion([0.0, 1.0], 1.0);
         step_flight(&mut imag_config, &imag_motion, 1.0, &limits);
-        assert_region_center(&imag_config.region, 0.0, 0.2);
+        assert_centre(&imag_config, 0.0, 0.2);
 
-        let mut both_config = MandelbrotConfig {
-            region: rect(-1.0, -1.0, 1.0, 1.0),
-            ..MandelbrotConfig::default()
-        };
+        let mut both_config = config_with(region(0.0, 0.0, 2.0, 2.0));
         let both_motion = motion([1.0, 1.0], 1.0);
         step_flight(&mut both_config, &both_motion, 1.0, &limits);
-        assert_region_center(&both_config.region, 0.2, 0.2);
+        assert_centre(&both_config, 0.2, 0.2);
     }
 
     #[test]
@@ -478,10 +364,7 @@ mod tests {
             max_region_extent: 10.0,
             ..FlightLimits::default()
         };
-        let mut up_config = MandelbrotConfig {
-            region: rect(-1.0, -2.0, 1.0, 2.0),
-            ..MandelbrotConfig::default()
-        };
+        let mut up_config = config_with(region(0.0, 0.0, 2.0, 4.0));
         let up_motion = motion([1.0, 0.0], 1.0);
 
         let up_report = step_flight(&mut up_config, &up_motion, 0.0, &up_limits);
@@ -496,10 +379,7 @@ mod tests {
             max_region_extent: 3.0,
             ..FlightLimits::default()
         };
-        let mut down_config = MandelbrotConfig {
-            region: rect(-3.0, -2.0, 3.0, 2.0),
-            ..MandelbrotConfig::default()
-        };
+        let mut down_config = config_with(region(0.0, 0.0, 6.0, 4.0));
         let down_motion = motion([1.0, 0.0], 1.0);
 
         let down_report = step_flight(&mut down_config, &down_motion, 0.0, &down_limits);
@@ -511,50 +391,95 @@ mod tests {
     }
 
     #[test]
-    fn non_finite_region_resets_to_default_for_nan_and_infinity() {
-        let mut nan_config = MandelbrotConfig {
-            region: rect(f64::NAN, -1.0, 1.0, 1.0),
-            ..MandelbrotConfig::default()
-        };
-        let motion = motion([1.0, 0.0], 1.0);
+    fn non_finite_speed_resets_to_default() {
+        let mut config = config_with(region(0.0, 0.0, 4.0, 2.0));
+        let inf_motion = motion([1.0, 0.0], f64::NEG_INFINITY);
 
-        let nan_report = step_flight(&mut nan_config, &motion, 1.0, &FlightLimits::default());
+        let report = step_flight(&mut config, &inf_motion, 1.0, &FlightLimits::default());
 
-        assert_eq!(nan_config.region, default_region());
-        assert!(nan_report.clamped);
-        assert_eq!(nan_report.warning, Some(FlightWarning::NonFiniteReset));
-
-        let mut inf_config = MandelbrotConfig {
-            region: rect(-1.0, -1.0, f64::INFINITY, 1.0),
-            ..MandelbrotConfig::default()
-        };
-
-        let inf_report = step_flight(&mut inf_config, &motion, 1.0, &FlightLimits::default());
-
-        assert_eq!(inf_config.region, default_region());
-        assert!(inf_report.clamped);
-        assert_eq!(inf_report.warning, Some(FlightWarning::NonFiniteReset));
+        assert_eq!(config.region, default_region());
+        assert!(report.clamped);
+        assert_eq!(report.warning, Some(FlightWarning::NonFiniteReset));
     }
 
     #[test]
-    fn viewport_precision_floor_clamps_deep_zoom_before_rows_collapse() {
+    fn deep_zoom_is_not_clamped_until_the_extent_floor() {
+        // The old f64 pipeline had to clamp around 1e-11 to keep pixel rows
+        // distinct; perturbation rendering needs no such guard. A view at
+        // 1e-100 must keep zooming freely.
         let limits = FlightLimits::default();
-        let viewport = PixelRect::new(Point { x: 0, y: 0 }, Point { x: 1919, y: 1079 })
-            .expect("viewport should be valid");
-        let mut config = MandelbrotConfig {
-            region: rect(-5e-13, -5e-13, 5e-13, 5e-13),
-            ..MandelbrotConfig::default()
-        };
-        let motion = motion([1.0, 0.0], 1.0);
-        let (real_scale, imag_scale) = axis_coordinate_scales(&config.region);
-        let min_width = limits.precision_min_axis_extent(real_scale, viewport.width());
-        let min_height = limits.precision_min_axis_extent(imag_scale, viewport.height());
+        let viewport = crate::core::data::pixel_rect::PixelRect::new(
+            crate::core::data::point::Point { x: 0, y: 0 },
+            crate::core::data::point::Point { x: 1919, y: 1079 },
+        )
+        .expect("viewport should be valid");
+        let mut config = config_with(region(-0.75, 0.1, 1e-100, 1e-100));
+        let motion = motion([0.0, 0.0], 1.0);
 
-        let report = step_flight_in_viewport(&mut config, &motion, 0.0, &limits, Some(viewport));
+        let report = step_flight_in_viewport(&mut config, &motion, 0.5, &limits, Some(viewport));
+
+        assert!(!report.clamped, "deep zoom must not clamp above the floor");
+        assert!(config.region.width() < 1e-100);
+    }
+
+    #[test]
+    fn extent_floor_clamps_at_the_deep_limit() {
+        let limits = FlightLimits::default();
+        let floor = limits.min_region_extent;
+        let mut config = config_with(region(-0.75, 0.1, floor * 1.5, floor * 1.5));
+        let motion = motion([0.0, 0.0], 5.0);
+
+        // Zoom hard enough to cross the floor in one step.
+        let report = step_flight(&mut config, &motion, 1.0, &limits);
 
         assert!(report.clamped);
         assert_eq!(report.warning, Some(FlightWarning::ExtentClamped));
-        assert!(config.region.width() >= min_width);
-        assert!(config.region.height() >= min_height);
+        assert_approx_eq(config.region.width() / floor, 1.0);
+    }
+
+    #[test]
+    fn panning_at_depth_moves_centre_below_f64_resolution() {
+        let limits = FlightLimits {
+            steer_strength: 0.5,
+            ..FlightLimits::default()
+        };
+        let start = region(-0.75, 0.1, 1e-40, 1e-40);
+        let mut config = config_with(start.clone());
+        let motion = motion([1.0, 0.0], 0.0001);
+
+        let report = step_flight(&mut config, &motion, 1.0, &limits);
+
+        assert!(!report.clamped);
+        assert_ne!(config.region.centre(), start.centre());
+
+        let (dre, dim) = config.region.centre().sub_to_f64(start.centre());
+        let expected = 0.5 * 1e-40; // heading * steer * width * dt
+        assert!(
+            (dre - expected).abs() < expected * 1e-9,
+            "pan was lost to rounding: dre={dre}"
+        );
+        assert_eq!(dim, 0.0);
+    }
+
+    #[test]
+    fn precision_grows_as_flight_dives_deeper() {
+        let limits = FlightLimits::default();
+        let mut config = config_with(region(-0.75, 0.1, 1e-3, 1e-3));
+        let before_bits = config.region.centre().precision_bits();
+        let motion = motion([0.1, 0.1], 5.0);
+
+        for _ in 0..200 {
+            let report = step_flight(&mut config, &motion, 0.25, &limits);
+            assert_ne!(report.warning, Some(FlightWarning::NonFiniteReset));
+        }
+
+        assert!(config.region.width() < 1e-40);
+        assert!(
+            config.region.centre().precision_bits() > before_bits,
+            "centre precision must grow with depth"
+        );
+        assert!(
+            config.region.centre().precision_bits() >= config.region.required_precision_bits()
+        );
     }
 }

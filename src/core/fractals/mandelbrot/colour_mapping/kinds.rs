@@ -7,7 +7,7 @@ pub enum MandelbrotColourMapKinds {
 }
 
 impl MandelbrotColourMapKinds {
-    pub const ALL: &'static [Self] = &[Self::FireGradient, Self::BlueWhiteGradient];
+    pub const ALL: &'static [Self] = &[Self::BlueWhiteGradient, Self::FireGradient];
 
     #[must_use]
     pub const fn display_name(self) -> &'static str {

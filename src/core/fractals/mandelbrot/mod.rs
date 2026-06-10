@@ -5,3 +5,4 @@ pub mod flight;
 pub mod mandelbrot_config;
 pub mod params;
 pub mod perturbation;
+pub mod render_path;

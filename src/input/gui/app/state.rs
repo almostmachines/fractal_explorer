@@ -1,5 +1,4 @@
 use crate::controllers::interactive::data::fractal_config::FractalConfig;
-use crate::core::data::complex_rect::ComplexRect;
 use crate::core::data::pixel_rect::PixelRect;
 use crate::core::fractals::fractal_kinds::FractalKinds;
 use crate::core::fractals::julia::julia_config::JuliaConfig;
@@ -37,11 +36,14 @@ impl GuiAppState {
         }
     }
 
+    /// Width and height of the active fractal's view, for status display.
     #[must_use]
-    pub fn active_region(&self) -> ComplexRect {
+    pub fn active_extent(&self) -> (f64, f64) {
         match self.selected_fractal {
-            FractalKinds::Mandelbrot => self.mandelbrot.region,
-            FractalKinds::Julia => self.julia.region,
+            FractalKinds::Mandelbrot => {
+                (self.mandelbrot.region.width(), self.mandelbrot.region.height())
+            }
+            FractalKinds::Julia => (self.julia.region.width(), self.julia.region.height()),
         }
     }
 
@@ -68,7 +70,10 @@ impl GuiAppState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::{data::point::Point, fractals::julia::colour_mapping::kinds::JuliaColourMapKinds};
+    use crate::core::{
+        data::point::Point,
+        fractals::mandelbrot::colour_mapping::kinds::MandelbrotColourMapKinds,
+    };
 
     fn create_pixel_rect(width: i32, height: i32) -> PixelRect {
         PixelRect::new(
@@ -94,8 +99,8 @@ mod tests {
         let same_request = ui_state.build_render_request(pixel_rect);
         assert!(!ui_state.should_submit(&same_request));
 
-        // Change only colour_map_kind
-        ui_state.julia.colour_map_kind = JuliaColourMapKinds::BlueWhiteGradient;
+        // Change only colour_map_kind on the active (default) fractal
+        ui_state.mandelbrot.colour_map_kind = MandelbrotColourMapKinds::FireGradient;
         let changed_request = ui_state.build_render_request(pixel_rect);
         assert!(ui_state.should_submit(&changed_request));
     }
@@ -108,7 +113,7 @@ mod tests {
         let request1 = ui_state.build_render_request(pixel_rect);
         ui_state.record_submission(Arc::new(request1), 1);
 
-        ui_state.julia.max_iterations += 1;
+        ui_state.mandelbrot.max_iterations += 1;
         let changed_request = ui_state.build_render_request(pixel_rect);
 
         assert!(ui_state.should_submit(&changed_request));
@@ -122,7 +127,7 @@ mod tests {
         let request1 = ui_state.build_render_request(pixel_rect);
         ui_state.record_submission(Arc::new(request1), 1);
 
-        ui_state.selected_fractal = FractalKinds::Mandelbrot;
+        ui_state.selected_fractal = FractalKinds::Julia;
         let changed_request = ui_state.build_render_request(pixel_rect);
 
         assert!(ui_state.should_submit(&changed_request));
@@ -135,14 +140,14 @@ mod tests {
 
         assert!(matches!(
             ui_state.build_render_request(pixel_rect),
-            FractalConfig::Julia { .. }
+            FractalConfig::Mandelbrot { .. }
         ));
 
-        ui_state.selected_fractal = FractalKinds::Mandelbrot;
+        ui_state.selected_fractal = FractalKinds::Julia;
 
         assert!(matches!(
             ui_state.build_render_request(pixel_rect),
-            FractalConfig::Mandelbrot { .. }
+            FractalConfig::Julia { .. }
         ));
     }
 
