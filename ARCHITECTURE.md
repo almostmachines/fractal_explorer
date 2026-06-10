@@ -19,6 +19,7 @@ src/
 ├── controllers/          # Application orchestration (CLI + interactive worker)
 │   ├── cli/              # CLI flows (synchronous)
 │   └── interactive/      # Interactive rendering controller (worker thread + events)
+├── gpu/                  # wgpu compute adapter for perturbation deltas (feature = "gpu")
 ├── presenters/           # Output adapters
 │   ├── file/             # File output (PPM)
 │   └── pixels/           # GUI framebuffer presenter (pixels + egui) (feature = "gui")
@@ -44,7 +45,19 @@ The core is where the “what” lives: algorithms, data models, and the use-cas
 
 - `PixelRect`, `Point` define image-space bounds (`src/core/data/`).
 - `Complex`, `ComplexRect` define the complex-plane region (`src/core/data/`).
+- `DeepComplex`, `DeepRegion` define the Mandelbrot view at arbitrary zoom depth: a big-float centre (dashu) plus f64 extents (`src/core/data/deep_complex.rs`, `deep_region.rs`). Centre precision grows automatically with depth.
 - `PixelBuffer` is the final RGB byte buffer with its `PixelRect` (`src/core/data/pixel_buffer.rs`).
+
+### Deep zoom via perturbation theory
+
+The Mandelbrot view routes between two algorithms by extent (`MandelbrotRenderPath`, threshold `PERTURBATION_EXTENT_THRESHOLD` = 1e-8 in `mandelbrot_config.rs`):
+
+- **Direct f64** (`algorithm.rs`): AVX-accelerated per-pixel iteration; exact at shallow zoom.
+- **Perturbation** (`perturbation/`): one *reference orbit* `Z' = Z² + C` is iterated at the view centre in arbitrary precision (`reference_orbit.rs`, cached across frames by `OrbitCache` — pure zooms reuse it), snapshotted to f64. Each pixel then iterates only its small delta `δ' = 2Zδ + δ² + δc` in f64, with Zhuoran-style rebasing (`δ = z, m = 0` whenever `|z| < |δ|` or the orbit ends) to prevent glitches.
+
+This decouples pixel resolution from absolute coordinates: flight is limited only by the f64 exponent range of the *extent* (`FlightLimits::min_region_extent`, 1e-280), not f64 mantissa precision (~1e-13).
+
+When the `gpu` feature is enabled, perturbation frames with extent ≥ 1e-30 are computed by a WGSL compute shader (f32 deltas, same rebasing; `src/gpu/perturbation_renderer.rs` + `perturbation.wgsl`) and the iteration counts are read back and colour-mapped on the CPU. Anything the GPU declines — including all extents below the f32 floor — falls back to the CPU perturbation path.
 
 ### Use-cases (actions)
 
@@ -91,10 +104,10 @@ The handshake looks like:
 
 1. UI builds a `FractalConfig` based on window size + controls (`src/input/gui/app/state.rs`)
 2. UI submits it to `InteractiveController::submit_request(...)` (returns a **generation id**)
-3. Worker renders using cancel-aware actions and emits `RenderEvent` (frame or error)
+3. Worker calls `FractalConfig::prepare(...)` (resolves the perturbation reference orbit, cancel-aware), offers deep-zoom Mandelbrot frames to the GPU port, then renders (GPU readback + colour map, or the CPU pixel pass) and emits `RenderEvent` (frame or error)
 4. A presenter adapter stores the latest event and wakes the event loop for redraw
 
-The controller-to-presenter port is `InteractiveControllerPresenterPort` (`src/controllers/interactive/ports/presenter.rs`), implemented by `PixelsAdapter` (`src/presenters/pixels/adapter.rs`).
+The controller-to-presenter port is `InteractiveControllerPresenterPort` (`src/controllers/interactive/ports/presenter.rs`), implemented by `PixelsAdapter` (`src/presenters/pixels/adapter.rs`). The optional GPU port is `GpuFractalRendererPort` (`src/controllers/interactive/ports/gpu_renderer.rs`), implemented by `WgpuPerturbationRenderer` (`src/gpu/`); the worker owns it and falls back to the CPU whenever it declines.
 
 ## Concurrency and cancellation
 

@@ -116,12 +116,13 @@ The codebase follows **hexagonal architecture** (ports & adapters). See `ARCHITE
 ```
 src/
 ├── core/           # Pure domain logic (no external deps)
-│   ├── data/       # Complex, PixelBuffer, Colour, rects
-│   ├── fractals/   # Mandelbrot algorithm + colour maps
+│   ├── data/       # Complex, PixelBuffer, Colour, rects, DeepComplex/DeepRegion (big-float centre)
+│   ├── fractals/   # Mandelbrot (direct f64 + perturbation) and Julia + colour maps
 │   └── actions/    # Use cases: render_pixel_buffer (single-pass), generate_fractal, generate_pixel_buffer
 ├── controllers/    # Application orchestration
 │   ├── cli/                 # CLI (synchronous)
 │   └── interactive/         # GUI (async with worker thread)
+├── gpu/            # wgpu compute adapter for perturbation deltas (feature "gpu")
 ├── input/gui/      # winit + egui event handling
 ├── presenters/     # wgpu framebuffer rendering
 └── storage/        # PPM file output
@@ -131,14 +132,25 @@ src/
 
 - **`FractalAlgorithm`**: Computes iteration count per pixel
 - **`ColourMap<T>`**: Maps iteration counts to RGB colours
-- **`CancelToken`**: Cooperative cancellation (checked every 1024 pixels)
+- **`CancelToken`**: Cooperative cancellation (checked per row / every 64 orbit iterations)
 - **`InteractiveControllerPresenterPort`**: Receives rendered frames for display
+- **`GpuFractalRendererPort`**: Optional GPU compute for perturbation frames (CPU fallback when declined)
 
 ### Rendering Pipeline
 
 ```
 PixelRect + Algorithm + ColourMap → PixelBuffer RGBA → Output  (single-pass, parallel)
 ```
+
+### Deep Zoom (Perturbation)
+
+Mandelbrot views deeper than extent 1e-8 switch from the direct f64 algorithm to
+perturbation rendering (`core/fractals/mandelbrot/perturbation/`): a cached
+arbitrary-precision reference orbit at the view centre plus per-pixel f64 delta
+iteration with rebasing. With the `gpu` feature (implied by `gui`), extents down
+to 1e-30 run as a wgpu compute shader with f32 deltas; beyond that the CPU f64
+delta path continues to the extent floor of 1e-280 (`FlightLimits::min_region_extent`).
+See ARCHITECTURE.md for details.
 
 ### Adding a New Colour Map
 
